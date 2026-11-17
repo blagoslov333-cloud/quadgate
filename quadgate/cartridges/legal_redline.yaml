@@ -1,0 +1,28 @@
+name: legal_redline
+version: "1.0"
+context_unit:
+  indexer: clause_boundaries
+  include_globs: ["**/*.md", "**/*.txt", "**/*.docx", "**/*.pdf"]
+  exclude_globs: ["**/.git/**"]
+  private_tier1_globs: ["**/privileged/**", "**/attorney_client/**", "**/private_vault/**"]
+
+mutation_tools:
+  - write_to_file
+  - replace_file_content
+  - multi_replace_file_content
+  - Write
+  - Edit
+
+invariants:
+  - id: INV_LEG_01_UNLIMITED_LIABILITY
+    gist: "Flag clauses removing liability caps or introducing uncapped indemnification obligations."
+    remediation: "Restore standard playbook liability cap and escalate clause to legal counsel."
+  - id: INV_LEG_02_GREY_ZONE_ESCALATION
+    gist: "Escalate ambiguous statutory or playbook interpretations within the 0.60-0.84 confidence band to human review."
+    remediation: "Pause automated redline acceptance and request counsel sign-off."
+
+truth_oracle:
+  timeout_ms: 800
+  checks:
+    - "verify_required_clauses_present"
+    - "verify_cross_references"

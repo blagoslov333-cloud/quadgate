@@ -1,0 +1,29 @@
+name: knowledge_vault
+version: "1.0"
+context_unit:
+  indexer: markdown_sections
+  include_globs: ["**/*.md", "**/*.txt", "**/*.rst"]
+  exclude_globs: ["**/.git/**", "**/.obsidian/**", "**/node_modules/**"]
+  private_tier1_globs: ["**/vault/private/**", "**/private_vault/**", "**/*[private]*"]
+
+mutation_tools:
+  - write_to_file
+  - replace_file_content
+  - multi_replace_file_content
+  - Write
+  - Edit
+  - MultiEdit
+
+invariants:
+  - id: INV_KV_01_PII_AIRGAP
+    gist: "Never transmit Tier-1 private vault notes, SSNs, or personal health records to cloud classifiers or prompts."
+    remediation: "Keep Tier-1 notes air-gapped on local classifiers and redact PII before external synthesis."
+  - id: INV_KV_02_CITATION_GROUNDING
+    gist: "Every factual synthesis claim must reference an existing vault note or verified citation path."
+    remediation: "Link each claim to a real source document or mark as unverified."
+
+truth_oracle:
+  timeout_ms: 800
+  checks:
+    - "verify_wikilinks_exist"
+    - "verify_citations_present"

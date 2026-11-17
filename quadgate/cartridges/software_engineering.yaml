@@ -1,0 +1,34 @@
+name: software_engineering
+version: "1.0"
+context_unit:
+  indexer: tree_sitter_ast
+  include_globs: ["**/*.py", "**/*.ts", "**/*.tsx", "**/*.rs", "**/*.go", "**/*.md"]
+  exclude_globs: ["**/.git/**", "**/node_modules/**", "**/.venv/**", "**/dist/**"]
+  private_tier1_globs: ["**/.env*", "**/secrets/**", "**/private_vault/**"]
+
+mutation_tools:
+  - write_to_file
+  - replace_file_content
+  - multi_replace_file_content
+  - Write
+  - Edit
+  - MultiEdit
+  - run_command
+  - Bash
+
+invariants:
+  - id: INV_01_SECRET_EXPOSURE
+    gist: "Never hardcode API keys, tokens, credentials, or read .env files into prompts or commits."
+    remediation: "Read secrets via environment variables at runtime without echoing values."
+  - id: INV_02_CAGE_CONTAINMENT
+    gist: "Subagents must modify only files explicitly listed inside their assigned file cage."
+    remediation: "Revert edits outside assigned target paths and escalate cross-module changes to Orchestrator."
+  - id: INV_03_CACHE_IMMUTABILITY
+    gist: "Never dynamically rewrite static system blueprints mid-session on turn > 1."
+    remediation: "Append dynamic hints exclusively at the end of turn-1 context."
+
+truth_oracle:
+  timeout_ms: 800
+  commands_by_extension:
+    ".py": ["python", "-m", "py_compile", "{file}"]
+    ".ts": ["npx", "--no-install", "tsc", "--noEmit", "--pretty", "false"]

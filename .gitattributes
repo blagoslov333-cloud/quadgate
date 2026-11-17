@@ -1,0 +1,13 @@
+# Force GitHub Linguist to classify this repository strictly by core Python source code
+docs/** linguist-documentation
+assets/** linguist-documentation
+examples/** linguist-documentation
+benchmarks/suites/** linguist-vendored
+tests/fixtures/** linguist-vendored
+benchmarks/reports/** linguist-generated
+*.min.js linguist-generated
+*.lock linguist-generated
+*.svg linguist-generated
+
+# Keep POSIX shell scripts LF-normalized across Windows and Linux
+*.sh text eol=lf

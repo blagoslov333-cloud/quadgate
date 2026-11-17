@@ -1,0 +1,75 @@
+name: Bug Report
+description: Report a reproducible bug in QuadGate gates, shims, drivers, adapters, or benchmarks.
+title: "[Bug]: "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug! Please avoid pasting API keys, `.env` contents, or private local file paths.
+        For security vulnerabilities or Stage-2A containment bypasses, please use [GitHub Security Advisories](https://github.com/blagoslov333-cloud/quadgate/security/advisories/new) instead of a public issue.
+  - type: dropdown
+    id: harness
+    attributes:
+      label: Agent Harness
+      description: Which harness or integration surface were you using?
+      options:
+        - Antigravity (.agents/hooks.json)
+        - Claude Code (.claude/settings.json)
+        - OpenAI Codex CLI (exec-codex / proxy)
+        - MCP Client (.cursor/mcp.json / quadgate mcp)
+        - Direct Python SDK / CLI
+    validations:
+      required: true
+  - type: dropdown
+    id: driver
+    attributes:
+      label: Classifier Driver
+      description: Which `active_driver` was configured in `quadgate.toml`?
+      options:
+        - zero_dep
+        - onnx_local
+        - layaa
+        - decision1
+        - jev
+        - logprob_fallback
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating System
+      options:
+        - Linux
+        - macOS
+        - Windows
+    validations:
+      required: true
+  - type: input
+    id: python_version
+    attributes:
+      label: Python Version
+      placeholder: "e.g. 3.11.9 or 3.12.4"
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: Describe the Bug
+      description: Clear summary of expected vs. actual behavior.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal Reproduction Steps
+      description: Exact CLI commands, `GateEvent` payload, or test snippet to reproduce.
+      render: bash
+    validations:
+      required: true
+  - type: textarea
+    id: doctor_output
+    attributes:
+      label: Diagnostics (`quadgate doctor --json`)
+      description: Paste sanitized output from `quadgate doctor --json` and `quadgate status --json`.
+      render: json

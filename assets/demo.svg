@@ -1,0 +1,109 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 560" width="920" height="560" role="img" aria-label="QuadGate live terminal demonstration">
+  <style>
+    .bg { fill: #0D1117; stroke: #30363D; stroke-width: 1.5; }
+    .bar { fill: #161B22; }
+    .sep { stroke: #30363D; stroke-width: 1; }
+    .title { fill: #8B949E; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; font-size: 13px; font-weight: 600; }
+    .txt { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; font-size: 14px; white-space: pre; }
+    .prompt { fill: #58A6FF; font-weight: 700; }
+    .cmd { fill: #F0F6FC; font-weight: 600; }
+    .muted { fill: #8B949E; }
+    .out { fill: #C9D1D9; }
+    .ok { fill: #3FB950; font-weight: 700; }
+    .hi { fill: #79C0FF; font-weight: 600; }
+    .metric { fill: #56D364; font-weight: 700; }
+
+    @keyframes step1 {
+      0%, 2% { opacity: 0; }
+      4%, 96% { opacity: 1; }
+      100% { opacity: 0; }
+    }
+    @keyframes step1out {
+      0%, 10% { opacity: 0; }
+      12%, 96% { opacity: 1; }
+      100% { opacity: 0; }
+    }
+    @keyframes step2 {
+      0%, 24% { opacity: 0; }
+      26%, 96% { opacity: 1; }
+      100% { opacity: 0; }
+    }
+    @keyframes step2out {
+      0%, 32% { opacity: 0; }
+      34%, 96% { opacity: 1; }
+      100% { opacity: 0; }
+    }
+    @keyframes step3 {
+      0%, 48% { opacity: 0; }
+      50%, 96% { opacity: 1; }
+      100% { opacity: 0; }
+    }
+    @keyframes step3out {
+      0%, 58% { opacity: 0; }
+      60%, 96% { opacity: 1; }
+      100% { opacity: 0; }
+    }
+    @keyframes blink {
+      0%, 49% { opacity: 1; }
+      50%, 100% { opacity: 0; }
+    }
+
+    .s1 { animation: step1 12s infinite; }
+    .s1o { animation: step1out 12s infinite; }
+    .s2 { animation: step2 12s infinite; }
+    .s2o { animation: step2out 12s infinite; }
+    .s3 { animation: step3 12s infinite; }
+    .s3o { animation: step3out 12s infinite; }
+    .cursor { animation: blink 1s step-end infinite; fill: #58A6FF; }
+  </style>
+
+  <!-- Terminal Window Frame -->
+  <rect class="bg" x="1" y="1" width="918" height="558" rx="12" />
+  <path class="bar" d="M 1 13 A 12 12 0 0 1 13 1 L 907 1 A 12 12 0 0 1 919 13 L 919 42 L 1 42 Z" />
+  <line class="sep" x1="1" y1="42" x2="919" y2="42" />
+
+  <!-- Window Controls -->
+  <circle cx="24" cy="22" r="6" fill="#FF5F56" />
+  <circle cx="44" cy="22" r="6" fill="#FFBD2E" />
+  <circle cx="64" cy="22" r="6" fill="#27C93F" />
+  <text class="title" x="460" y="26" text-anchor="middle">quadgate — 4-gate control plane</text>
+
+  <!-- Step 1: quadgate init -->
+  <g class="s1">
+    <text class="txt" x="24" y="76"><tspan class="prompt">$ </tspan><tspan class="cmd">quadgate init --harness antigravity</tspan></text>
+  </g>
+  <g class="s1o">
+    <text class="txt out" x="24" y="100">Initialized QuadGate workspace: .</text>
+    <text class="txt muted" x="24" y="121">  config:  <tspan class="out">quadgate.toml (created)</tspan></text>
+    <text class="txt muted" x="24" y="142">  hooks:   <tspan class="hi">.agents/hooks.json</tspan></text>
+    <text class="txt muted" x="24" y="163">  index:   <tspan class="out">.quadgate/pass0.db (48 files indexed)</tspan></text>
+    <text class="txt muted" x="24" y="184">  harness: <tspan class="out">antigravity | cartridge: software_engineering</tspan></text>
+  </g>
+
+  <!-- Step 2: quadgate doctor -->
+  <g class="s2">
+    <text class="txt" x="24" y="224"><tspan class="prompt">$ </tspan><tspan class="cmd">quadgate doctor</tspan></text>
+  </g>
+  <g class="s2o">
+    <text class="txt" x="24" y="248"><tspan class="out">QuadGate doctor: </tspan><tspan class="ok">OK</tspan></text>
+    <text class="txt muted" x="24" y="269">  health_latency_ms:   <tspan class="metric">0.822 ms</tspan><tspan class="out"> (&lt;10ms: True)</tspan></text>
+    <text class="txt muted" x="24" y="290">  evaluate_latency_ms: <tspan class="out">115.394 ms (action=allow)</tspan></text>
+    <text class="txt muted" x="24" y="311">  active_driver:       <tspan class="out">zero_dep | cartridge=software_engineering</tspan></text>
+    <text class="txt muted" x="24" y="332">  clean_shutdown:      <tspan class="ok">True</tspan></text>
+  </g>
+
+  <!-- Step 3: quadgate bench -->
+  <g class="s3">
+    <text class="txt" x="24" y="372"><tspan class="prompt">$ </tspan><tspan class="cmd">quadgate bench --dry-replay</tspan></text>
+  </g>
+  <g class="s3o">
+    <text class="txt out" x="24" y="396">QuadGate bench (all, runs=1, dry_replay=True):</text>
+    <text class="txt muted" x="24" y="417">  receipts:  <tspan class="out">70 (35 paired tasks)</tspan></text>
+    <text class="txt muted" x="24" y="438">  pass@1:    <tspan class="out">baseline=88.6% vs </tspan><tspan class="metric">quadgate=100.0%</tspan></text>
+    <text class="txt muted" x="24" y="459">  KV cache:  <tspan class="out">baseline=22.5% vs </tspan><tspan class="metric">quadgate=56.3% (+33.8 pp)</tspan></text>
+    <text class="txt muted" x="24" y="480">  cost USD:  <tspan class="out">baseline=$8.0989 vs </tspan><tspan class="metric">quadgate=$1.8694 (-76.9%)</tspan></text>
+    <text class="txt muted" x="24" y="501">  report:    <tspan class="hi">benchmarks/reports/LATEST_PROOF.md</tspan></text>
+    <text class="txt" x="24" y="532"><tspan class="prompt">$ </tspan></text>
+    <rect class="cursor" x="42" y="518" width="9" height="17" rx="1" />
+  </g>
+</svg>

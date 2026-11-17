@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 640" width="1280" height="640" role="img" aria-label="QuadGate Social Preview">
+  <defs>
+    <linearGradient id="accentGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#1F6FEB" />
+      <stop offset="100%" stop-color="#238636" />
+    </linearGradient>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#161B22" stroke-width="1" />
+    </pattern>
+  </defs>
+
+  <!-- Full 1280x640 Dark Background -->
+  <rect width="1280" height="640" fill="#0D1117" />
+  <rect width="1280" height="640" fill="url(#grid)" opacity="0.65" />
+
+  <!-- 1120x480 Safe Zone Card (x: 80..1200, y: 80..560) -->
+  <clipPath id="cardClip">
+    <rect x="80" y="80" width="1120" height="480" rx="24" />
+  </clipPath>
+  <rect x="80" y="80" width="1120" height="480" rx="24" fill="#161B22" stroke="#30363D" stroke-width="2" />
+  <rect x="80" y="80" width="1120" height="6" fill="url(#accentGrad)" clip-path="url(#cardClip)" />
+
+  <!-- Geometric 4-Gate Mark inside safe zone -->
+  <g transform="translate(148, 158)">
+    <rect x="0" y="0" width="14" height="58" rx="4" fill="#1F6FEB" />
+    <rect x="22" y="0" width="14" height="58" rx="4" fill="#388BFD" />
+    <rect x="44" y="0" width="14" height="58" rx="4" fill="#2EA043" />
+    <rect x="66" y="0" width="14" height="58" rx="4" fill="#238636" />
+  </g>
+
+  <!-- Bold Monospace Project Title (64px) -->
+  <text x="256" y="210" fill="#FFFFFF" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="64" font-weight="800" letter-spacing="-1">QuadGate</text>
+
+  <!-- Plain-English Value Proposition (32px, <= 9 words) -->
+  <text x="148" y="302" fill="#E6EDF3" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="32" font-weight="500">4-Gate Control Plane for AI Agents</text>
+
+  <!-- Accent Pill Badge (#238636) -->
+  <rect x="148" y="368" width="820" height="62" rx="31" fill="#238636" />
+  <text x="558" y="407" text-anchor="middle" fill="#FFFFFF" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="24" font-weight="700">76.9% Lower Cost • 78.0% Faster • 100% Pass@1</text>
+
+  <!-- Minimal 4-Gate Visual Indicator Bars (zero extra words) -->
+  <g transform="translate(148, 476)">
+    <rect x="0" y="0" width="228" height="10" rx="5" fill="#1F6FEB" opacity="0.9" />
+    <rect x="252" y="0" width="228" height="10" rx="5" fill="#388BFD" opacity="0.9" />
+    <rect x="504" y="0" width="228" height="10" rx="5" fill="#2EA043" opacity="0.9" />
+    <rect x="756" y="0" width="228" height="10" rx="5" fill="#3FB950" opacity="0.9" />
+  </g>
+</svg>

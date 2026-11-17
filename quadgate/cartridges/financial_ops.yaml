@@ -1,0 +1,29 @@
+name: financial_ops
+version: "1.0"
+context_unit:
+  indexer: ledger_schema
+  include_globs: ["**/*.csv", "**/*.tsv", "**/*.sql", "**/*.json", "**/*.md"]
+  exclude_globs: ["**/.git/**", "**/dist/**"]
+  private_tier1_globs: ["**/tax_ids/**", "**/payroll/**", "**/.env*"]
+
+mutation_tools:
+  - write_to_file
+  - replace_file_content
+  - Write
+  - Edit
+  - run_command
+  - Bash
+
+invariants:
+  - id: INV_FIN_01_PAYOUT_THRESHOLD
+    gist: "Block automated ledger mutations or payout transfers exceeding configured dual-control thresholds."
+    remediation: "Flag high-value transfers for human treasury approval before execution."
+  - id: INV_FIN_02_DOUBLE_ENTRY_BALANCE
+    gist: "Journal mutations must preserve balanced debits and credits across all affected accounts."
+    remediation: "Add offsetting balancing entries so net ledger delta equals zero."
+
+truth_oracle:
+  timeout_ms: 800
+  checks:
+    - "verify_double_entry_sum"
+    - "verify_currency_precision"

@@ -1,0 +1,446 @@
+# QuadGate — Complete Technical Reference (`llms-full.txt`)
+
+> Model-agnostic 4-gate control plane for Claude Code, Antigravity, Codex CLI & MCP that preserves KV caches to cut LLM cost by 76.9% and latency by 78.0%.
+
+- **Repository:** https://github.com/blagoslov333-cloud/quadgate
+- **Package:** `quadgate` (`v0.1.0`, Python `>=3.11`, License: `Apache-2.0`)
+- **CLI Entrypoints:** `quadgate` (`quadgate.cli:main`) and `qg-shim` (`quadgate.shim:main`)
+- **Verified Empirical A/B Proof (`benchmarks/reports/LATEST_PROOF.md`, 35 paired tasks / 70 receipts):**
+  - `Pass@1`: `88.6%` baseline -> `100.0%` QuadGate (`+11.4 pp`)
+  - `Warm KV-Cache Hit Rate`: `22.5%` baseline -> `56.3%` QuadGate (`+33.8 pp`, `61.0%` input token savings, 95% CI `[54.9%, 67.1%]`)
+  - `Total Cost`: `$8.0989` baseline -> `$1.8694` QuadGate (`76.9%` paired reduction, 95% CI `[45.2%, 108.6%]`; includes `$0.0028` classifier cost and `$0.0301` retry tax)
+  - `Wall-Clock Latency (p50 / p90 / mean)`: `19335.5 / 23681.1 / 19364.4 ms` baseline -> `3722.2 / 5833.1 / 4259.2 ms` QuadGate (`78.0%` paired reduction, 95% CI `[71.8%, 84.2%]`)
+
+---
+
+## 1. Installation
+
+```bash
+# Core package + dev/test tools (zero-dep fallback, tree-sitter, SQLite FTS5)
+pip install -e ".[dev]"
+
+# Optional local quantized INT8 ONNX cross-encoder runtime
+pip install -e ".[local]"
+```
+
+Dependencies from `pyproject.toml`:
+- Core: `aiohttp>=3.9.0`, `pyyaml>=6.0.1`, `pydantic>=2.7.0`, `tree-sitter>=0.22.0`
+- `[local]` extra: `onnxruntime>=1.18.0`, `tokenizers>=0.19.0`, `numpy>=1.26.0`
+- `[dev]` extra: `pytest>=8.2.0`, `pytest-asyncio>=0.23.0`, `ruff>=0.5.0`
+
+---
+
+## 2. Complete CLI Reference (`quadgate` & `qg-shim`)
+
+### `quadgate init`
+Initialize `quadgate.toml`, `.quadgate/logs/`, `.quadgate/pass0.db` (`AstGistIndexer` + `SqliteFtsStore`), and harness hook configs.
+```bash
+quadgate init [--harness {antigravity,claude-code,codex,mcp}] [--local] [--workspace PATH] [--cartridge NAME] [--force] [--json]
+```
+- `--harness`: `antigravity` (default), `claude-code`, `codex`, `mcp`
+- `--local`: Downloads `modernbert-int8.onnx` and `tokenizer.json` into `~/.quadgate/models/`
+- `--workspace`: Target workspace root (default `.`)
+- `--cartridge`: Active cartridge name or YAML path (default `software_engineering`)
+- `--force`: Overwrite existing `quadgate.toml`
+- `--json`: Emit structured JSON summary
+
+### `quadgate daemon`
+Manage the persistent localhost control-plane daemon (`127.0.0.1:8787`).
+```bash
+quadgate daemon {start,stop,status} [--config PATH] [--foreground] [--host HOST] [--port PORT] [--idle-minutes N] [--json]
+```
+- `start`: Starts detached background daemon (or `--foreground`), writes `~/.quadgate/run.token` (`0600` on POSIX) and `~/.quadgate/daemon.json`
+- `stop`: Calls `POST /v1/shutdown` and cleans state files
+- `status`: Probes `/v1/health` and prints active driver, cartridge, PID, and uptime
+- `--config`: Config file path (default `quadgate.toml`)
+- `--idle-minutes`: Auto-shutdown idle minutes (default `30`)
+
+### `quadgate calibrate`
+Fit conformal calibration profile against a golden binary dataset (`ECE <= 0.05`) and persist to `~/.quadgate/calibration/<driver>.json`.
+```bash
+quadgate calibrate [--driver NAME] [--dataset PATH] [--method {temperature_scaling,isotonic}] [--profile-dir DIR] [--json]
+```
+- `--driver`: `onnx_local` (default), `zero_dep`, `layaa`, `decision1`, `jev`, `logprob_fallback`
+- `--dataset`: Path to JSONL pairs (default `benchmarks/calibration_gold.jsonl`, 64 pairs)
+- `--method`: `temperature_scaling` (default) or `isotonic`
+
+### `quadgate status` & `quadgate stats`
+```bash
+quadgate status [--config PATH] [--json]
+quadgate stats [--config PATH] [--json]
+```
+- `status`: Checks daemon liveness via `/v1/health`.
+- `stats`: Queries `/v1/stats` for request counts, latency percentiles (`mean_latency_ms`, `p50_latency_ms`, `p95_latency_ms`), `verdict_breakdown`, `gate_breakdown`, and `self_healing` telemetry (or counts offline `.quadgate/logs/grey_zone.jsonl` entries).
+
+### `quadgate doctor`
+Boots an isolated ephemeral daemon in a temp directory, measures warm `/v1/health` (`< 10 ms` check), evaluates a sample `GateEvent` via `/v1/evaluate`, queries `/v1/stats`, and asserts clean shutdown.
+```bash
+quadgate doctor [--config PATH] [--port PORT] [--json]
+```
+
+### `quadgate bench`
+Executes matched Baseline vs. QuadGate A/B benchmark tasks across `coding` (20 tasks) and `knowledge` (15 tasks) suites with SHA-256 task & receipt manifests.
+```bash
+quadgate bench [--suite {coding,knowledge,all}] [--runs N] [--dry-replay] [--live] [--output PATH] [--json]
+```
+- `--dry-replay`: Deterministic offline replay mode (default unless `--live` is passed)
+- `--live`: Live sandbox A/B execution using configured provider keys
+- `--output`: Report Markdown path (default `benchmarks/reports/LATEST_PROOF.md`)
+
+### `quadgate exec-codex` & `quadgate mcp`
+```bash
+quadgate exec-codex [-- <codex args...>]
+quadgate mcp
+```
+- `exec-codex`: Runs offline Stage-2A + Gate 2 command guard, injects `OPENAI_BASE_URL=http://127.0.0.1:8788/v1` and `QUADGATE_HARNESS=codex_cli`, executes `codex`, and audits post-turn git diff via Gate 4.
+- `mcp`: Runs JSON-RPC 2.0 MCP server over stdio (`MCP_PROTOCOL_VERSION = "2024-11-05"`).
+
+### `qg-shim` (Zero-Dependency Hook Client)
+Pure-stdlib synchronous hook executable (`quadgate/shim.py`).
+```bash
+qg-shim --harness <antigravity|claude_code|codex_cli|mcp|generic> --gate <intake|firewall|subagent_governor|stop_audit>
+```
+Environment overrides:
+- `QUADGATE_HOME`: Runtime directory (default `~/.quadgate`)
+- `QUADGATE_DAEMON_HOST`: Override host (default `127.0.0.1`)
+- `QUADGATE_DAEMON_PORT`: Override port (default `8787`)
+- `QUADGATE_SHIM_TIMEOUT_MS`: Override socket deadline in ms (default `450`, `SHIM_TIMEOUT_SECONDS = 0.450`)
+- `QUADGATE_TOKEN_PATH`: Override Bearer token file path (default `~/.quadgate/run.token`)
+- `QUADGATE_STATE_PATH`: Override `daemon.json` path
+- `QUADGATE_WORKSPACE_ROOT`: Fallback workspace root if omitted from stdin hook JSON
+
+---
+
+## 3. Complete `quadgate.toml` Configuration Schema
+
+Reference template (`quadgate.example.toml`):
+
+```toml
+[daemon]
+host = "127.0.0.1"
+port = 8787
+proxy_port = 8788
+shim_timeout_ms = 450
+idle_shutdown_minutes = 30
+
+[classifier]
+# Options: "onnx_local" | "layaa" | "decision1" | "jev" | "logprob_fallback" | "zero_dep"
+active_driver = "onnx_local"
+fallback_driver = "zero_dep"
+max_calibration_ece = 0.05
+
+[classifier.decision1]
+endpoint = "https://api.decision1.ai/v1/score"
+api_key_env = "DECISION1_API_KEY"
+max_heads = 1000
+
+[classifier.jev]
+endpoint = "http://127.0.0.1:9091/v1/classify"
+api_key_env = "JEV_API_KEY"
+max_heads = 512
+
+[classifier.layaa]
+model_path = "~/.quadgate/models/layaa-int8.onnx"
+device = "cpu"
+max_candidates_per_pass = 32
+
+[cartridge]
+# Built-in: "software_engineering" | "knowledge_vault" | "financial_ops" | "legal_redline"
+active = "software_engineering"
+
+[thresholds]
+gate1_context_hint_min = 0.80
+gate1_actionability_min = 0.30
+gate2_invariant_block = 0.78
+gate3_floor_confidence = 0.82
+gate3_mid_confidence = 0.60
+gate4_completeness_min = 0.85
+grey_zone_low = 0.60
+grey_zone_high = 0.84
+
+[tiers.models]
+# Keep within the active provider family to preserve prompt compatibility
+frontier = "pro"
+mid = "flash"
+floor = "flash_lite"
+```
+
+Pydantic configuration models (`extra="forbid"`):
+- `DaemonConfig`: `host: str = "127.0.0.1"`, `port: int = 8787 (0..65535)`, `proxy_port: int = 8788 (0..65535)`, `shim_timeout_ms: int = 450 (50..5000)`, `idle_shutdown_minutes: int = 30 (>=1)`
+- `ThresholdConfig`: `gate1_context_hint_min = 0.80`, `gate1_actionability_min = 0.30`, `gate2_invariant_block = 0.78`, `gate3_floor_confidence = 0.82`, `gate3_mid_confidence = 0.60`, `gate4_completeness_min = 0.85`, `grey_zone_low = 0.60`, `grey_zone_high = 0.84`
+- `TierModelConfig`: `frontier = "pro"`, `mid = "flash"`, `floor = "flash_lite"`
+
+---
+
+## 4. Canonical Data Contracts (`quadgate/contracts.py`)
+
+All models use Pydantic `BaseModel` with `ConfigDict(extra="forbid")`.
+
+### Enums (`StrEnum`)
+- `GateType`: `"intake"`, `"firewall"`, `"subagent_governor"`, `"stop_audit"`
+- `HarnessType`: `"antigravity"`, `"claude_code"`, `"codex_cli"`, `"mcp"`, `"generic"`
+- `VerdictAction`: `"allow"`, `"block"`, `"augment"`, `"modify"`, `"promote"`
+- `ModelTier`: `"floor"`, `"mid"`, `"frontier"`
+- `HeadCategory`: `"invariant"`, `"pragmatic"`, `"candidate"`
+
+### `GateEvent`
+| Field | Type | Default / Constraints |
+| :--- | :--- | :--- |
+| `gate` | `GateType` | `GateType.INTAKE` |
+| `session_id` | `str` | Required (`min_length=1`) |
+| `turn_index` | `int` | `1` (`ge=1`) |
+| `workspace_root` | `str` | Required (`min_length=1`) |
+| `harness` | `HarnessType` | `HarnessType.GENERIC` (normalizes `"codex"` -> `"codex_cli"`, `"-"` -> `"_"`) |
+| `tool_name` | `str | None` | `None` |
+| `tool_args` | `dict[str, Any]` | `{}` |
+| `prompt_text` | `str | None` | `None` |
+| `assigned_file_cage` | `list[str] | None` | `None` |
+| `current_tier` | `ModelTier | None` | `None` |
+| `strike_count` | `int` | `0` (`ge=0`) |
+| `touched_files` | `list[str]` | `[]` |
+| `diff_text` | `str | None` | `None` |
+| `continuation_active` | `bool` | `False` |
+| `bypass_gates` | `bool` | `False` |
+| `metadata` | `dict[str, Any]` | `{}` |
+
+### `ViolationReceipt`
+| Field | Type | Default / Constraints |
+| :--- | :--- | :--- |
+| `rule_id` | `str` | Required (`min_length=1`) |
+| `score` | `float` | Required (`ge=0.0, le=1.0`) |
+| `stage` | `Literal["deterministic_2a", "semantic_2b"]` | `"deterministic_2a"` |
+| `remediation` | `str` | Required (`min_length=1`) |
+| `bypass_instruction` | `str` | `"Include [bypass-gates] in prompt or confirm human override."` |
+| `strike_count` | `int` | `1` (`ge=1`) |
+| `escalate_to_human` | `bool` | `False` |
+| `violated_path` | `str | None` | `None` |
+
+### `GateVerdict`
+| Field | Type | Default / Constraints |
+| :--- | :--- | :--- |
+| `action` (alias `verdict`) | `VerdictAction` | Required (`block` requires `violation_receipt`; `promote` requires `updated_model` or `target_tier`) |
+| `gate` | `GateType | None` | `None` |
+| `tail_hints` | `list[str]` | `[]` |
+| `updated_tool_args` | `dict[str, Any] | None` | `None` |
+| `updated_model` | `str | None` | `None` |
+| `target_tier` | `ModelTier | None` | `None` |
+| `violation_receipt` | `ViolationReceipt | None` | `None` |
+| `latency_ms` | `float` | `0.0` (`ge=0.0`) |
+| `reason` | `str | None` | `None` |
+| `cloud_egress_allowed` | `bool` | `True` |
+| `unaddressed_clauses` | `list[str]` | `[]` |
+
+### `CartridgeSpec` & Nested Specs
+- `ContextUnitSpec`: `indexer: str`, `include_globs: list[str]`, `exclude_globs: list[str] = []`, `private_tier1_globs: list[str] = []`
+- `InvariantSpec`: `id: str`, `gist: str`, `remediation: str`, `scope_globs: list[str] = []`
+- `TruthOracleSpec`: `timeout_ms: int = 800 (50..10000)`, `commands_by_extension: dict[str, list[str]] = {}`, `checks: list[str] = []`
+- `CartridgeSpec`: `name: str`, `version: str = "1.0"`, `context_unit: ContextUnitSpec`, `mutation_tools: list[str]`, `invariants: list[InvariantSpec]`, `truth_oracle: TruthOracleSpec`
+
+### Classifier & Index Contracts
+- `ClassifierHead`: `head_id: str`, `candidate_text: str`, `category: HeadCategory = CANDIDATE`, `slot_index: int | None (1..1000)`, `metadata: dict[str, Any]`
+- `ClassifierRequest`: `query_text: str`, `heads: list[ClassifierHead]` (unique `head_id`s), `cloud_egress_allowed: bool = True`, `max_candidates: int | None (1..1000)`, `timeout_ms: int = 350 (1..10000)`
+- `ClassifierResponse`: `driver_id: str`, `head_ids: list[str]`, `raw_scores: dict[str, float]`, `calibrated_probabilities: dict[str, float]` (in `[0.0, 1.0]`), `driver_latency_ms: float`, `is_calibrated: bool`, `tokens_used: int`, `estimated_cost_usd: float`
+- `IndexedGist`: `workspace_hash: str`, `rel_path: str`, `content_hash: str`, `language: str`, `semantic_gist: str`, `symbols: list[str]`, `imports: list[str]`, `fan_in_count: int`, `mtime_ns: int`, `is_private_tier1: bool`
+
+---
+
+## 5. Daemon Loopback HTTP API & Cold Proxy
+
+### `QuadGateDaemon` (`127.0.0.1:8787`)
+Protected by `Authorization: Bearer <token>` read from `~/.quadgate/run.token`:
+- `GET /v1/health`: Returns `{"status": "ok", "version": "0.1.0", "port": ..., "active_driver": ..., "active_cartridge": ..., "uptime_s": ...}`
+- `POST /v1/evaluate`: Validates JSON as `GateEvent`, dispatches through `GateEngine`, returns serialized `GateVerdict`.
+- `GET /v1/stats`: Returns request count, `mean_latency_ms`, `p50_latency_ms`, `p95_latency_ms`, `verdict_breakdown`, `gate_breakdown`, `workspaces_active`, and `self_healing` metrics.
+- `POST /v1/shutdown`: Gracefully flushes SQLite connections and shuts down daemon.
+
+### `ColdSessionProxy` (`127.0.0.1:8788`)
+Inspects LLM HTTP request payloads:
+- **Cold calls** (no `assistant`, `tool`, or `function` turn history, and no `tool_use`/`tool_result` blocks) trigger Gate 3 `ECC` evaluation and route to `floor`, `mid`, or `frontier` within the active provider family.
+- **Warm multi-turn calls** bypass unchanged to preserve KV prefix caches.
+- **Upstream target:** `QUADGATE_UPSTREAM_URL` or `OPENAI_UPSTREAM_BASE_URL` (default `https://api.openai.com`).
+
+---
+
+## 6. Stage-2A Offline Security Guarantees & Verified Latencies
+
+`quadgate/shim.py` imports **only Python stdlib modules** (`os`, `re`, `sys`, plus lazy `json`, `socket` after Stage-2A) so hooks avoid heavy package import overhead.
+
+### Verified Timing Benchmarks (Local Audit)
+- **Cold `qg-shim` import / boot:** `6.19 ms` median
+- **Deterministic Stage-2A security check:** `0.162 ms` mean (`< 2 ms` budget)
+- **Live Pass-0 daemon round-trip (40 sequential calls):** `7.92 ms` median, `9.17 ms` p95
+- **Socket Fail-Open Deadline:** `SHIM_TIMEOUT_SECONDS = 0.450` (`450 ms`, `connect_timeout = min(effective_timeout, 0.280)`)
+
+### Resilience Boundary
+- **Fail-Closed Offline (`Stage-2A`):** Evaluates inside `qg-shim` before contacting the daemon; always blocks dangerous operations even if the daemon is crashed, offline, or `[bypass-gates]` is present.
+- **Fail-Open Optimization (`Gates 1, 3, 4 & Stage-2B`):** If the daemon is unreachable or exceeds the `450 ms` socket deadline, `qg-shim` exits `0` cleanly (`{}` for Antigravity, empty stdout for Claude Code) so agent sessions never freeze.
+
+### Deterministic Stage-2A Rules
+1. **`INV_01_SECRET_EXPOSURE`:**
+   - Blocks reads/writes/commands referencing `.env` or `.env.*` (while explicitly permitting `.env.example`, `.env.sample`, `.env.template`).
+   - Detects obfuscated `.env` access: Base64 / URL-safe Base64 / UTF-16LE Base64 tokens, hex strings, `\x2e` / `\u002e` / `\056` / `%2e` escapes, `chr()` / `fromCharCode()` / `bytes([...])` sequences, quote splitting (`'.'env`), and glob wildcards (`.en?`, `.[e]nv`).
+   - Blocks outbound HTTP commands (`curl`, `wget`, `Invoke-WebRequest`, `Invoke-RestMethod`, `iwr`, `irm`, `nc`) referencing `~/.ssh`, `~/.aws`, `~/.kube`, `id_rsa`, `id_ed25519`, `.netrc`, `.npmrc`, `.pypirc`, or secret env vars (`*SECRET*`, `*TOKEN*`, `*KEY*`, `*PASSWORD*`), and piped `env`/`printenv` exfiltration.
+   - Blocks hardcoded private keys (`-----BEGIN ... PRIVATE KEY-----`), AWS (`AKIA...`), OpenAI (`sk-...`), and GitHub (`ghp_`/`gho_`/`ghu_`/`ghs_`) tokens in written content or commands.
+2. **`INV_02_CAGE_CONTAINMENT`:**
+   - Resolves paths and symlinks/junctions via `_resolve_within_workspace` (`os.path.realpath` + `os.path.commonpath`); blocks `..` escapes, out-of-workspace absolute paths, and symlinks pointing to `.env` or outside the workspace root.
+   - Stage-2B additionally enforces `GateEvent.assigned_file_cage` globs/directories.
+3. **`STAGE2A_DESTRUCTIVE_COMMAND`:**
+   - Blocks `rm -rf /` (including `/*`, `~`, `$HOME`, `/etc`, `/usr`, `/var`, drive roots `C:\`), `Remove-Item -Recurse -Force` on roots, `rd`/`rmdir`/`del` `/s /q` on drive roots, `mkfs.*`, `dd of=/dev/...`, `Format-Volume`, `Clear-Disk`, including inside `sh -c` / `bash -c` / `pwsh -c` / `cmd /c` wrappers and base64-encoded commands.
+4. **`STAGE2A_FORCE_PUSH_MAIN`:**
+   - Blocks `git push -f` / `--force` / `--force-with-lease` / `+ref` targeting `main` or `master`.
+
+---
+
+## 7. Classifier Drivers & Conformal Calibration
+
+All 6 built-in drivers inherit `ClassifierDriver` (`quadgate/drivers/base.py`):
+
+| `active_driver` | Class | `is_cloud` | `supports_parallel_heads` | `max_candidates_per_pass` | `CalibrationEngine` Budget | `scores_are_logits` | Env / Config |
+| :--- | :--- | :---: | :---: | :---: | :---: | :---: | :--- |
+| `decision1` | `Decision1Driver` | `True` | `True` | `1000` (default) | `800` | `True` | `DECISION1_API_KEY`, `https://api.decision1.ai/v1/score` |
+| `jev` | `JevDriver` | `True` (configurable `False` for self-hosted) | `True` | `800` (up to `1000`) | `800` | `True` | `JEV_API_KEY`, `JEV_BASE_URL` (`http://127.0.0.1:9091/v1/classify`) |
+| `layaa` | `LayaaDriver` | `False` | `False` | `32` | `32` | `True` | `~/.quadgate/models/layaa-int8.onnx` or `LAYAA_ENDPOINT` |
+| `onnx_local` | `LocalOnnxDriver` | `False` | `False` | `32` | `32` | `True` | `~/.quadgate/models/modernbert-int8.onnx`, `QUADGATE_ONNX_MODEL_URL`, `QUADGATE_ONNX_TOKENIZER_URL` |
+| `logprob_fallback` | `LogprobFallbackDriver` | `True` | `False` | `64` | `64` | `False` | `OPENAI_API_KEY` (`gpt-4o-mini`) or `GEMINI_API_KEY` (`gemini-2.5-flash`) |
+| `zero_dep` | `ZeroDepDriver` | `False` | `True` | `256` | `256` | `False` | Pure-Python TF-IDF + BM25 + structural heuristics (zero external deps) |
+
+`CalibrationEngine` (`quadgate/kernel/calibration.py`):
+- Methods: `temperature_scaling` (log-grid + Golden-Section minimizing NLL in `[0.02, 50.0]`) and `isotonic` (exact pure-Python PAVA).
+- Target gate: `ECE <= 0.05` (`CalibrationProfile.passes_ece_gate`).
+- Air-gap enforcement: `ClassifierDriver.classify()` raises `PermissionError` if `caps.is_cloud` is `True` and `request.cloud_egress_allowed` is `False`; `GateEngine` automatically routes air-gapped queries to `ZeroDepDriver`.
+
+---
+
+## 8. Harness Hook Schemas & MCP Tools
+
+### A. Antigravity (`.agents/hooks.json`)
+```json
+{
+  "enabled": true,
+  "PreInvocation": [
+    {
+      "command": "qg-shim --harness antigravity --gate intake"
+    }
+  ],
+  "PreToolUse": [
+    {
+      "matcher": "^(write_to_file|replace_file_content|multi_replace_file_content|write_file|edit_file|delete_file|run_command)$",
+      "command": "qg-shim --harness antigravity --gate firewall"
+    },
+    {
+      "matcher": "^invoke_subagent$",
+      "command": "qg-shim --harness antigravity --gate subagent_governor"
+    }
+  ],
+  "Stop": [
+    {
+      "command": "qg-shim --harness antigravity --gate stop_audit"
+    }
+  ]
+}
+```
+Output protocol (`AntigravityAdapter`): always exits `0` with JSON on `stdout` (`injectSteps`/`additionalContext` for `augment`, `{"decision": "deny", "reason": ...}` for `block`, `{"decision": "allow", "overwrite": ..., "updatedInput": ...}` for `modify`).
+
+### B. Claude Code (`.claude/settings.json`)
+```json
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "qg-shim --harness claude_code --gate intake"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "qg-shim --harness claude_code --gate firewall"
+          }
+        ]
+      },
+      {
+        "matcher": "Task",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "qg-shim --harness claude_code --gate subagent_governor"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "qg-shim --harness claude_code --gate stop_audit"
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "qg-shim --harness claude_code --gate stop_audit"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+Output protocol (`ClaudeCodeAdapter`): exits `2` + `stderr` on `block`/`promote`, and emits `hookSpecificOutput.updatedInput` on `PreToolUse` `modify` (`Task` tier downgrade).
+
+### C. OpenAI Codex CLI (`.codex/profile.sh`)
+```bash
+#!/usr/bin/env bash
+# >>> quadgate managed block >>>
+# Routes cold sub-worker requests through the QuadGate local proxy while guarding shell mutations
+export OPENAI_BASE_URL="http://127.0.0.1:8788/v1"
+quadgate exec-codex -- "$@"
+# <<< quadgate managed block <<<
+```
+
+### D. MCP Clients (`.cursor/mcp.json` & `quadgate mcp`)
+```json
+{
+  "mcpServers": {
+    "quadgate": {
+      "command": "quadgate",
+      "args": [
+        "mcp"
+      ]
+    }
+  }
+}
+```
+Exposed JSON-RPC 2.0 MCP tools (`quadgate/adapters/mcp_bridge.py`):
+1. `quadgate_context_sieve` (required: `prompt_text`; optional: `workspace_root`, `turn_index`, `session_id`, `candidates`, `compact_reset`, `metadata`) -> returns `action`, `tail_hints`, `reason`, `cloud_egress_allowed`, `latency_ms`.
+2. `quadgate_verify_mutation` (optional: `tool_name`, `tool_args`, `diff_text`, `touched_files`, `workspace_root`, `prompt_text`, `assigned_file_cage`, `bypass_gates`, `subagent_model`, `current_tier`, `session_id`, `turn_index`, `strike_count`) -> runs Stage-2A first, then Gate 2, and optional Gate 3 evaluation.
+3. `quadgate_audit_completion` (optional: `prompt_text`, `touched_files`, `diff_text`, `workspace_root`, `current_tier`, `strike_count`, `continuation_active`, `session_id`) -> runs Gate 4 truth oracle and completeness scoring.
+
+---
+
+## 9. Built-In Domain Cartridges & Gate 4 Oracles
+
+| Cartridge | Indexer | Built-In Invariants | Gate 4 Truth Oracle (`< 800 ms`) |
+| :--- | :--- | :--- | :--- |
+| `software_engineering` | `tree_sitter_ast` | `INV_01_SECRET_EXPOSURE`, `INV_02_CAGE_CONTAINMENT`, `INV_03_CACHE_IMMUTABILITY` | `py_compile` (`.py`), `tsc --noEmit` (`.ts`) |
+| `knowledge_vault` | `markdown_sections` | `INV_KV_01_PII_AIRGAP`, `INV_KV_02_CITATION_GROUNDING` | `verify_wikilinks_exist`, `verify_citations_present` |
+| `financial_ops` | `ledger_schema` | `INV_FIN_01_PAYOUT_THRESHOLD`, `INV_FIN_02_DOUBLE_ENTRY_BALANCE` | `verify_double_entry_sum`, `verify_currency_precision` |
+| `legal_redline` | `clause_boundaries` | `INV_LEG_01_UNLIMITED_LIABILITY`, `INV_LEG_02_GREY_ZONE_ESCALATION` | `verify_required_clauses_present`, `verify_cross_references` |
+
+### Gate Math Summary
+- **Gate 1 Actionability:** `A = p_directive * (1 - p_counterfactual)` (`< 0.30` marks brainstorm mode); Co-change boost `p*_j = min(1.0, p_cal_j + 0.12 * w_cochange(i, j))` when `w > 0.40`; hints injected only on `turn_index == 1` or `compact_reset = True` as `[QUADGATE_CONTEXT_HINTS]` at user message tail (preserving Turns `2..N` KV prefix caches).
+- **Gate 2 Firewall:** Stage-2A `< 2 ms` offline deterministic rules (never bypassed) + Stage-2B AST-scoped invariants (`>= 0.78` blocks, 2-strike human escalation).
+- **Gate 3 Subagent ECC Governor:** `P_eff = P_pass(M_k) * (1 - 0.5 * B) * (1 - R_hist)` and `ECC(M_k) = C_run(M_k) + (1 - P_eff) * C_promote(M_frontier)`. Downgrades only when `max(I_m) < 0.50`, `P_eff >= tau_k` (`0.82` for `floor`, `0.60` for `mid`), and `ECC` beats `frontier` by `>= 25%`.
+- **Gate 4 Stop Audit & 1-Strike Circuit Breaker:** Truth oracle + directive completeness (`>= 0.85` passes; `0.60..0.84` emits `unaddressed_clauses`). First failure from downgraded tier reverts dirty git hunks, updates `R_hist` in SQLite, and auto-promotes once (`floor -> mid` or `mid -> frontier`). Second strike halts (`GATE4_ONE_STRIKE_CIRCUIT_BREAKER`, `escalate_to_human = True`).

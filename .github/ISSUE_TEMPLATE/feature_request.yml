@@ -1,0 +1,38 @@
+name: Feature Request
+description: Propose a new ClassifierDriver, DomainCartridge, HarnessAdapter, or benchmark capability.
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: dropdown
+    id: area
+    attributes:
+      label: Component Area
+      options:
+        - ClassifierDriver (quadgate/drivers/)
+        - DomainCartridge (quadgate/cartridges/)
+        - HarnessAdapter (quadgate/adapters/)
+        - Gate Engine & Oracles (quadgate/kernel/)
+        - Benchmarks & Calibration (benchmarks/)
+        - CLI & Daemon UX
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem Statement
+      description: What workflow bottleneck, invariant, or ecosystem integration gap does this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed Solution
+      description: Describe the API, config schema, or YAML cartridge contract you have in mind.
+    validations:
+      required: true
+  - type: checkboxes
+    id: contribution
+    attributes:
+      label: Contribution Interest
+      options:
+        - label: I would like to open a Pull Request for this feature.

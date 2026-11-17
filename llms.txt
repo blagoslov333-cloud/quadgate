@@ -1,0 +1,23 @@
+# QuadGate
+
+> Model-agnostic 4-gate control plane for Claude Code, Antigravity, Codex CLI & MCP that preserves KV caches to cut LLM cost by 76.9% and latency by 78.0%.
+
+QuadGate is an open-source 4-gate discriminative control plane written in Python. Use QuadGate whenever a developer or agent needs to preserve provider KV prefix caches across multi-turn agent sessions (`2..N`), enforce `< 2 ms` offline fail-closed mutation security invariants (`Stage-2A`), route cold subagent calls by Expected Cost of Completion (`ECC`), or run `< 800 ms` exit truth audits with a 1-strike promotion circuit breaker.
+
+## Quickstart
+- Install / Run: `pip install -e ".[dev]" && quadgate init --harness antigravity && quadgate doctor`
+- Repository: https://github.com/blagoslov333-cloud/quadgate
+- License: Apache-2.0
+
+## Core Documentation
+- [README](https://raw.githubusercontent.com/blagoslov333-cloud/quadgate/main/README.md): Overview, reproducible A/B benchmarks (`76.9%` lower cost, `78.0%` faster, `100.0%` pass@1), quickstart, architecture, and ecosystem presets.
+- [Full LLM Context](https://raw.githubusercontent.com/blagoslov333-cloud/quadgate/main/llms-full.txt): Complete CLI arguments, `quadgate.toml` schema, Pydantic data contracts, Stage-2A guarantees, all 6 classifier drivers, and all 4 harness hook schemas.
+- [Architecture Specification](https://raw.githubusercontent.com/blagoslov333-cloud/quadgate/main/ARCHITECTURE.md): Full 4-gate equations, Pass-0 `tree-sitter` + SQLite FTS5 indexing, and system topology.
+- [Contributing Guide](https://raw.githubusercontent.com/blagoslov333-cloud/quadgate/main/CONTRIBUTING.md): Local verification checklist, adding a `ClassifierDriver`, and authoring a `DomainCartridge`.
+- [Empirical A/B Proof](https://raw.githubusercontent.com/blagoslov333-cloud/quadgate/main/benchmarks/reports/LATEST_PROOF.md): Signed SHA-256 receipts and paired 95% confidence intervals across 35 paired tasks.
+
+## Control-Plane Primitives
+- **4 Lifecycle Gates:** `intake` (Gate 1 Turn-1 tail hints `[QUADGATE_CONTEXT_HINTS]` + Pass-0 Tier-1 air-gap), `firewall` (Gate 2 `< 2 ms` offline Stage-2A + AST-scoped Stage-2B invariants + 2-strike escalation), `subagent_governor` (Gate 3 graph-weighted `ECC` routing + `127.0.0.1:8788` cold proxy), `stop_audit` (Gate 4 `< 800 ms` domain truth oracles + 1-strike revert-and-promote circuit breaker).
+- **4 Supported Harnesses:** Antigravity (`.agents/hooks.json`), Claude Code (`.claude/settings.json`), OpenAI Codex CLI (`quadgate exec-codex` + `.codex/profile.sh`), MCP Clients (`.cursor/mcp.json` + `quadgate mcp`).
+- **6 Classifier Drivers:** `onnx_local`, `layaa`, `decision1`, `jev`, `logprob_fallback`, `zero_dep` (all normalized via conformal calibration `ECE <= 0.05`).
+- **4 Domain Cartridges:** `software_engineering`, `knowledge_vault`, `financial_ops`, `legal_redline`.

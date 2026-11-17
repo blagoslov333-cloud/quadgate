@@ -1,0 +1,34 @@
+# Python & Packaging Artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.venv/
+dist/
+build/
+*.egg-info/
+
+# Environment & Secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Local Databases & Runtime State
+*.db
+*.sqlite
+*.sqlite3
+.state/
+.quadgate/
+
+# Agent & Launch-Kit Isolation (NEVER commit to public repo)
+.launch/
+.agentignore
+PUBLIC_REPO_LAUNCH_BLUEPRINT.md
+public_repository_launch_visibility_blueprint.md
+human_manual_antigravity_swarm_prompts.md
+starter_configs_cross_harness_kit.md
+quadgate_v2_agnostic_architecture.md

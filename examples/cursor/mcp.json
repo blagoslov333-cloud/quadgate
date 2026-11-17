@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "quadgate": {
+      "command": "quadgate",
+      "args": [
+        "mcp"
+      ]
+    }
+  }
+}

@@ -1,0 +1,47 @@
+[daemon]
+host = "127.0.0.1"
+port = 8787
+proxy_port = 8788
+shim_timeout_ms = 450
+idle_shutdown_minutes = 30
+
+[classifier]
+# Swap freely between: "onnx_local" | "layaa" | "decision1" | "jev" | "logprob_fallback"
+active_driver = "onnx_local"
+fallback_driver = "zero_dep"
+max_calibration_ece = 0.05
+
+[classifier.decision1]
+endpoint = "https://api.decision1.ai/v1/score"
+api_key_env = "DECISION1_API_KEY"
+max_heads = 1000
+
+[classifier.jev]
+endpoint = "http://127.0.0.1:9091/v1/classify"
+api_key_env = "JEV_API_KEY"
+max_heads = 512
+
+[classifier.layaa]
+model_path = "~/.quadgate/models/layaa-int8.onnx"
+device = "cpu"
+max_candidates_per_pass = 32
+
+[cartridge]
+# Built-in: "software_engineering" | "knowledge_vault" | "financial_ops" | "legal_redline"
+active = "software_engineering"
+
+[thresholds]
+gate1_context_hint_min = 0.80
+gate1_actionability_min = 0.30
+gate2_invariant_block = 0.78
+gate3_floor_confidence = 0.82
+gate3_mid_confidence = 0.60
+gate4_completeness_min = 0.85
+grey_zone_low = 0.60
+grey_zone_high = 0.84
+
+[tiers.models]
+# Keep within the active provider family to preserve prompt compatibility
+frontier = "pro"
+mid = "flash"
+floor = "flash_lite"

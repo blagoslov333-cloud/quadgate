@@ -1,0 +1,46 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "quadgate"
+version = "0.1.0"
+description = "Model-agnostic & harness-agnostic 4-gate discriminative kernel for AI coding and knowledge agents"
+readme = "README.md"
+license = { text = "Apache-2.0" }
+requires-python = ">=3.11"
+dependencies = [
+    "aiohttp>=3.9.0",
+    "pyyaml>=6.0.1",
+    "pydantic>=2.7.0",
+    "tree-sitter>=0.22.0",
+]
+
+[project.optional-dependencies]
+local = [
+    "onnxruntime>=1.18.0",
+    "tokenizers>=0.19.0",
+    "numpy>=1.26.0",
+]
+dev = [
+    "pytest>=8.2.0",
+    "pytest-asyncio>=0.23.0",
+    "ruff>=0.5.0",
+]
+
+[project.scripts]
+quadgate = "quadgate.cli:main"
+qg-shim = "quadgate.shim:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["quadgate"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+asyncio_mode = "auto"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+

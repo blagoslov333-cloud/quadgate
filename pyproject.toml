@@ -23,9 +23,14 @@ local = [
     "numpy>=1.26.0",
 ]
 dev = [
+    "httpx[http2]>=0.27.0",
+    "mypy>=1.10.0",
+    "numpy>=1.26.0",
     "pytest>=8.2.0",
     "pytest-asyncio>=0.23.0",
     "ruff>=0.5.0",
+    "tokenizers>=0.19.0",
+    "tree-sitter-language-pack>=0.7.0",
 ]
 
 [project.scripts]
@@ -39,6 +44,28 @@ packages = ["quadgate"]
 testpaths = ["tests"]
 pythonpath = ["."]
 asyncio_mode = "auto"
+
+[tool.mypy]
+python_version = "3.11"
+
+[[tool.mypy.overrides]]
+module = [
+    "h2",
+    "h2.*",
+    "httpx",
+    "httpx.*",
+    "numpy",
+    "numpy.*",
+    "onnxruntime",
+    "onnxruntime.*",
+    "tokenizers",
+    "tokenizers.*",
+    "tree_sitter_language_pack",
+    "tree_sitter_language_pack.*",
+    "yaml",
+    "yaml.*",
+]
+ignore_missing_imports = true
 
 [tool.ruff]
 target-version = "py311"

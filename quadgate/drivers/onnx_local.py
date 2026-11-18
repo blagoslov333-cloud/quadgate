@@ -950,7 +950,7 @@ class _FallbackPairTokenizer:
         *,
         max_length: int = 512,
     ) -> tuple[Any, Any, Any]:
-        import numpy as np
+        import numpy as np  # type: ignore[import-not-found,import-untyped]
 
         budget = max(8, max_length - 3)
         q_budget = max(4, budget // 2)
@@ -991,7 +991,7 @@ def load_pair_tokenizer(tokenizer: Any = None, tokenizer_path: Path | None = Non
     if tokenizer is not None:
         return tokenizer
     if tokenizer_path is not None and tokenizer_path.is_file():
-        from tokenizers import Tokenizer  # type: ignore[import-untyped]
+        from tokenizers import Tokenizer  # type: ignore[import-not-found,import-untyped]
 
         tok = Tokenizer.from_file(str(tokenizer_path))
         if getattr(tok, "truncation", None) is None:
@@ -1013,7 +1013,7 @@ def tokenize_pairs_to_numpy(
     max_length: int = 512,
 ) -> tuple[Any, Any, Any]:
     """Batch-encode `(query_text, candidate_text)` pairs into int64 numpy tensors."""
-    import numpy as np
+    import numpy as np  # type: ignore[import-not-found,import-untyped]
 
     pairs = [(query_text, cand) for cand in candidate_texts]
     if isinstance(tokenizer, _FallbackPairTokenizer):
@@ -1127,7 +1127,7 @@ def resolve_onnx_session(
 
     try:
         # Lazy import: `onnxruntime` is an optional `[local]` extra.
-        import onnxruntime as ort  # type: ignore[import-not-found]
+        import onnxruntime as ort  # type: ignore[import-not-found,import-untyped]
     except ImportError:
         return None, "Optional dependency `onnxruntime` is not installed."
 
@@ -1138,7 +1138,7 @@ def resolve_onnx_session(
 
 def extract_logits_from_outputs(outputs: Any, batch_size: int) -> list[float]:
     """Extract raw cross-encoder logits from `[B]`, `[B, 1]`, or `[B, 2]` arrays."""
-    import numpy as np
+    import numpy as np  # type: ignore[import-not-found,import-untyped]
 
     if isinstance(outputs, dict):
         raw = outputs["logits"] if "logits" in outputs else next(iter(outputs.values()))

@@ -111,8 +111,8 @@ class _CloudHttpPool:
             self._backend = None
 
         try:
-            import h2  # noqa: F401
-            import httpx
+            import h2  # type: ignore[import-not-found,import-untyped]  # noqa: F401
+            import httpx  # type: ignore[import-not-found,import-untyped]
         except ImportError:
             httpx = None  # type: ignore[assignment]
 

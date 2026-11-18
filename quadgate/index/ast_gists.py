@@ -218,7 +218,7 @@ def _get_ts_parser(language: str) -> Any | None:
     if language in _PARSER_CACHE:
         return _PARSER_CACHE[language]
     try:
-        import tree_sitter_language_pack as tslp
+        import tree_sitter_language_pack as tslp  # type: ignore[import-not-found,import-untyped]
     except ImportError:
         return None
     if tslp is None or not hasattr(tslp, "get_parser"):

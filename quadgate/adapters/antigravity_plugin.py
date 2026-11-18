@@ -58,7 +58,7 @@ _RULES_AGENTS_MD = """# QuadGate 4-Gate Kernel Rules
 When QuadGate hooks and MCP tools are active in Antigravity:
 
 1. **Gate 1 (`[QUADGATE_CONTEXT_HINTS]`):** Prioritize inspecting files listed in `[QUADGATE_CONTEXT_HINTS]` at Turn 1 instead of running broad directory scans. Keep conversation prefixes immutable across turns so KV caches stay warm.
-2. **Gate 2 (Security & Containment Firewall):** Never retry blocked `.env`, private key, or out-of-workspace writes without removing the secret or obtaining explicit `[bypass-gates]` user intent (Stage-2A security blocks are deterministic and never bypassed). Stay inside any assigned Swarm file cage.
+2. **Gate 2 (Security & Containment Firewall):** In default `assistant` firewall mode, solo chats honor your Antigravity `nonWorkspaceFileAccessPolicy` (`allow`/`ask`/`deny`) while using native `"allow"` (localhost), `"ask"` (`.env` and known AI/cloud dev APIs), `"force_ask"` (untrusted outbound secret network calls), and hard `"deny"` for disk wipes, `main`/`master` force-pushes, direct edits to `~/.gemini/config/config.json`, and Swarm `assigned_file_cage` escapes. In `strict` mode (`QUADGATE_FIREWALL_MODE=strict`), out-of-workspace and `.env` operations hard-deny unless `[bypass-gates]` or safe `~/.gemini` subtrees apply.
 3. **Gate 3 (Swarm & Subagent Cost-Risk Routing):** Choose Swarm worker models deliberately when calling `swarm(action="add", ...)`:
    - Route mechanical single-file/leaf tasks to `gemini-3.8-flash-low` or `gemini-3.8-flash-high`.
    - Route high-blast-radius, security-sensitive, kernel, or multi-file architecture tasks to `gemini-4-argon-high` or `gemini-4-carbon-high`.
@@ -118,7 +118,7 @@ Global 4-gate control plane integration for **Antigravity 2.0** and native **Swa
 
 1. **SessionStart**: Ensures the persistent QuadGate daemon (`127.0.0.1:8787`) is running with `decision1` + offline fallback.
 2. **PreInvocation (Gate 1)**: Injects compact Pass-0 `[QUADGATE_CONTEXT_HINTS]` on Turn 1 and protects Tier-1 private files.
-3. **PreToolUse Firewall (Gate 2)**: Blocks secret exposure (`.env`, private keys, tokens), OS/arbitrary folder escapes (while safely permitting Antigravity workspace `~/.gemini` plugin/artifact work except `config.json`), and Swarm cage escapes before file/command tools run.
+3. **PreToolUse Firewall (Gate 2)**: Runs in `assistant` mode by default (`[antigravity] firewall_mode = "assistant"` in `~/.quadgate/config.toml`; set `"strict"` or `QUADGATE_FIREWALL_MODE=strict` for untrusted lockdown). Honors `userSettings.nonWorkspaceFileAccessPolicy` for solo chats, keeps Swarm `assigned_file_cage` strict, allows safe `~/.gemini` workflows and localhost calls, prompts via `"ask"` / `"force_ask"` for `.env` / API-key / untrusted external exfil, and hard-denies disk wipes, `main`/`master` force-pushes, and direct edits to `~/.gemini/config/config.json`.
 4. **PreToolUse Governor (Gate 3)**: Evaluates `invoke_subagent` and `swarm(action="add", ...)` worker spawns using graph blast radius + historical failure rate (`R_hist`) and routes `model` accordingly.
 5. **Stop Audit (Gate 4)**: Verifies truth-oracle checks and prompt completeness on actionable work turns with a strict 1-strike circuit breaker.
 6. **MCP Bridge (`quadgate-kernel`)**: Exposes `quadgate_context_sieve`, `quadgate_verify_mutation`, and `quadgate_audit_completion`.
@@ -186,6 +186,24 @@ _CFG_WRITE_CMD_RE = re.compile(
     r"(?:\s+-(?:path|literalpath|filepath))?\s+['\"]?[^\n;|&()]*\.gemini[/\\]config[/\\]config\.json)",
     re.IGNORECASE,
 )
+_FIREWALL_MODE_RE = re.compile(
+    r'^\s*firewall_mode\s*=\s*["\'](strict|assistant)["\']',
+    re.MULTILINE | re.IGNORECASE,
+)
+_URL_HOST_RE = re.compile(
+    r"""https?://(\[[0-9a-fA-F:]+\]|[^:/\s"'`;|&<>()]+)""",
+    re.IGNORECASE,
+)
+_LOCAL_HOSTS = {"localhost", "127.0.0.1", "[::1]", "::1", "0.0.0.0"}
+_TRUSTED_DEV_API_HOSTS = {
+    "generativelanguage.googleapis.com",
+    "aiplatform.googleapis.com",
+    "oauth2.googleapis.com",
+    "www.googleapis.com",
+    "api.openai.com",
+    "api.anthropic.com",
+    "api.github.com",
+}
 
 
 def _resolve_quadgate_home() -> Path:
@@ -607,6 +625,151 @@ def _is_safe_antigravity_internal_path(
         if base_name == "credentials.json" or base_name.endswith((".pem", ".key")):
             return False
     return True
+
+
+def _resolve_firewall_mode(home_dir: Path) -> str:
+    env_mode = os.environ.get("QUADGATE_FIREWALL_MODE", "").strip().lower()
+    if env_mode in {"strict", "assistant"}:
+        return env_mode
+    cfg_path = home_dir / "config.toml"
+    if cfg_path.is_file():
+        try:
+            text = cfg_path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            text = ""
+        m = _FIREWALL_MODE_RE.search(text)
+        if m:
+            return m.group(1).lower()
+    return "assistant"
+
+
+def _read_non_workspace_policy() -> str:
+    cfg_path = _gemini_root_dir() / "config" / "config.json"
+    if cfg_path.is_file():
+        try:
+            cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            cfg = {}
+        if isinstance(cfg, dict):
+            user_settings = cfg.get("userSettings")
+            if isinstance(user_settings, dict):
+                pol = str(user_settings.get("nonWorkspaceFileAccessPolicy") or "").upper()
+                if "DENY" in pol:
+                    return "deny"
+                if "ASK" in pol:
+                    return "ask"
+    return "allow"
+
+
+def _violates_assigned_cage(
+    payload: dict[str, Any],
+    workspace_root: str,
+    *,
+    is_direct_mutation: bool,
+) -> str | None:
+    raw_cage = payload.get("assigned_file_cage")
+    if not is_direct_mutation or not isinstance(raw_cage, list) or not raw_cage:
+        return None
+    from quadgate.shim import _extract_tool_inputs, _fast_realpath, _resolve_within_workspace
+
+    paths, _, _ = _extract_tool_inputs(payload)
+    if not paths:
+        return None
+
+    ws_base = _fast_realpath(os.path.expanduser(workspace_root or "."))
+    ws_norm = os.path.normcase(ws_base)
+    cage_norms: list[str] = []
+    for item in raw_cage:
+        if not isinstance(item, str) or not item.strip():
+            continue
+        expanded = os.path.expanduser(item.strip())
+        if os.path.isabs(expanded) or bool(os.path.splitdrive(expanded)[0]):
+            cage_abs = _fast_realpath(expanded)
+        else:
+            cage_abs = _fast_realpath(os.path.join(ws_base, expanded))
+        cage_norms.append(os.path.normcase(cage_abs))
+
+    if not cage_norms:
+        return None
+
+    for raw_p in paths:
+        _, resolved_p = _resolve_within_workspace(raw_p, ws_base, ws_norm)
+        resolved_norm = os.path.normcase(resolved_p)
+        in_any = False
+        for c_norm in cage_norms:
+            try:
+                if os.path.commonpath([c_norm, resolved_norm]) == c_norm:
+                    in_any = True
+                    break
+            except ValueError:
+                continue
+        if not in_any:
+            return raw_p
+    return None
+
+
+def _classify_assistant_secret_decision(
+    payload: dict[str, Any],
+    receipt: dict[str, Any],
+) -> dict[str, Any]:
+    from quadgate.shim import (
+        _ensure_stage2a_compiled,
+        _extract_tool_inputs,
+        _path_has_forbidden_env,
+    )
+
+    paths, commands, _ = _extract_tool_inputs(payload)
+    s2a = _ensure_stage2a_compiled()
+    rule_id = str(receipt.get("rule_id") or "INV_01_SECRET_EXPOSURE")
+    remediation = str(
+        receipt.get("remediation") or "Tool accesses secret credentials or .env files."
+    )
+
+    hosts: list[str] = []
+    for cmd in commands:
+        for m in _URL_HOST_RE.finditer(cmd):
+            hosts.append(m.group(1).lower())
+
+    has_outbound_cmd = any(
+        bool(s2a.outbound_http_re.search(c) or s2a.pipe_env_exfil_re.search(c)) for c in commands
+    )
+    has_pipe_exfil = any(bool(s2a.pipe_env_exfil_re.search(c)) for c in commands)
+    touches_env_or_ssh = any(_path_has_forbidden_env(p) for p in paths) or any(
+        bool(s2a.wildcard_env_re.search(c))
+        or ".env" in c.lower()
+        or ".ssh" in c.lower()
+        or "id_rsa" in c.lower()
+        or "id_ed25519" in c.lower()
+        for c in commands
+    )
+
+    if (
+        commands
+        and hosts
+        and all(h in _LOCAL_HOSTS for h in hosts)
+        and not has_pipe_exfil
+        and not touches_env_or_ssh
+        and not paths
+    ):
+        return {"decision": "allow"}
+
+    if (
+        has_pipe_exfil
+        or (has_outbound_cmd and not hosts)
+        or any(h not in (_LOCAL_HOSTS | _TRUSTED_DEV_API_HOSTS) for h in hosts)
+    ):
+        return {
+            "decision": "force_ask",
+            "reason": (
+                f"QuadGate Security Check ({rule_id}): Outbound network command references "
+                f"secrets or .env data. {remediation}"
+            ),
+        }
+
+    return {
+        "decision": "ask",
+        "reason": f"QuadGate ({rule_id}): Confirm .env or API key access. {remediation}",
+    }
 
 
 def _tokenize_shell_preserving_quotes(seg: str) -> list[str]:
@@ -1122,23 +1285,28 @@ def _handle_event(event_name: str, payload: dict[str, Any], home_dir: Path) -> d
         tool_name, _ = _extract_tool_info(payload)
         is_direct_mutation = bool(tool_name in _MUTATING_TOOLS)
 
-        if active_ws is None and not has_cage:
-            if _targets_protected_gemini_config_write(payload, is_direct_mutation=is_direct_mutation):
+        if _targets_protected_gemini_config_write(payload, is_direct_mutation=is_direct_mutation):
+            return {
+                "decision": "deny",
+                "reason": "INV_02_CAGE_CONTAINMENT: Direct edits to ~/.gemini/config/config.json are blocked.",
+            }
+
+        if has_cage:
+            cage_violation = _violates_assigned_cage(
+                payload,
+                str(active_ws or "."),
+                is_direct_mutation=is_direct_mutation,
+            )
+            if cage_violation is not None:
                 return {
                     "decision": "deny",
-                    "reason": "INV_02_CAGE_CONTAINMENT: Direct edits to ~/.gemini/config/config.json are blocked.",
+                    "reason": (
+                        f"INV_02_CAGE_CONTAINMENT: Target {cage_violation!r} is outside "
+                        "assigned Swarm file cage."
+                    ),
                 }
-            receipt = check_stage2a_deterministic_security(payload, ".")
-            if receipt is not None:
-                rule_id = str(receipt.get("rule_id") or "STAGE2A_SECURITY_BLOCK")
-                if rule_id != "INV_02_CAGE_CONTAINMENT":
-                    remediation = str(
-                        receipt.get("remediation")
-                        or "Blocked by QuadGate deterministic security."
-                    )
-                    return {"decision": "deny", "reason": f"{rule_id}: {remediation}"}
-            return {"decision": "allow"}
 
+        fw_mode = _resolve_firewall_mode(home_dir)
         work_payload = dict(payload)
         if active_ws is not None:
             work_payload["workspace_root"] = active_ws
@@ -1151,21 +1319,56 @@ def _handle_event(event_name: str, payload: dict[str, Any], home_dir: Path) -> d
             receipt = check_stage2a_deterministic_security(work_payload, ws_root)
             if receipt is not None:
                 rule_id = str(receipt.get("rule_id") or "STAGE2A_SECURITY_BLOCK")
-                if rule_id == "INV_02_CAGE_CONTAINMENT" and (
-                    _all_outside_paths_are_safe_antigravity(
-                        work_payload, ws_root, is_direct_mutation=is_direct_mutation
-                    )
-                    or (has_bypass and not has_cage)
-                ):
-                    return {"decision": "allow"}
                 remediation = str(
                     receipt.get("remediation")
                     or "Blocked by QuadGate deterministic security."
                 )
+                if rule_id in {"STAGE2A_DESTRUCTIVE_COMMAND", "STAGE2A_FORCE_PUSH_MAIN"}:
+                    return {"decision": "deny", "reason": f"{rule_id}: {remediation}"}
+                if rule_id == "INV_02_CAGE_CONTAINMENT":
+                    if active_ws is None and not has_cage:
+                        return {"decision": "allow"}
+                    if has_cage:
+                        return {"decision": "deny", "reason": f"{rule_id}: {remediation}"}
+                    if _all_outside_paths_are_safe_antigravity(
+                        work_payload, ws_root, is_direct_mutation=is_direct_mutation
+                    ) or has_bypass:
+                        return {"decision": "allow"}
+                    if fw_mode == "assistant":
+                        pol = _read_non_workspace_policy()
+                        if pol == "allow":
+                            return {"decision": "allow"}
+                        if pol == "ask":
+                            return {
+                                "decision": "ask",
+                                "reason": f"QuadGate ({rule_id}): Confirm access outside workspace ({remediation})",
+                            }
+                    return {"decision": "deny", "reason": f"{rule_id}: {remediation}"}
+                if rule_id == "INV_01_SECRET_EXPOSURE":
+                    if fw_mode == "assistant":
+                        return _classify_assistant_secret_decision(
+                            work_payload if active_ws is not None else payload,
+                            receipt,
+                        )
+                    return {"decision": "deny", "reason": f"{rule_id}: {remediation}"}
                 return {"decision": "deny", "reason": f"{rule_id}: {remediation}"}
+
+        if active_ws is None and not has_cage:
+            return {"decision": "allow"}
+
         raw_verdict = _forward(eval_payload, home_dir)
         if not raw_verdict:
             return {"decision": "allow"}
+        if (
+            fw_mode == "assistant"
+            and not has_cage
+            and str(raw_verdict.get("action") or "").lower() == "block"
+        ):
+            v_rec = raw_verdict.get("violation_receipt")
+            if isinstance(v_rec, dict) and (
+                v_rec.get("escalate_to_human") is True or int(v_rec.get("strike_count") or 0) >= 2
+            ):
+                return {"decision": "ask", "reason": _format_block_reason_dict(raw_verdict)}
         t_name = eval_payload.get("tool_name")
         return _format_protojson_dict(
             "PreToolUse",

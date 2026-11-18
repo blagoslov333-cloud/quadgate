@@ -6,7 +6,7 @@ Global 4-gate control plane integration for **Antigravity 2.0** and native **Swa
 
 1. **SessionStart**: Ensures the persistent QuadGate daemon (`127.0.0.1:8787`) is running with `decision1` + offline fallback.
 2. **PreInvocation (Gate 1)**: Injects compact Pass-0 `[QUADGATE_CONTEXT_HINTS]` on Turn 1 and protects Tier-1 private files.
-3. **PreToolUse Firewall (Gate 2)**: Blocks secret exposure (`.env`, private keys, tokens), OS/arbitrary folder escapes (while safely permitting Antigravity workspace `~/.gemini` plugin/artifact work except `config.json`), and Swarm cage escapes before file/command tools run.
+3. **PreToolUse Firewall (Gate 2)**: Runs in `assistant` mode by default (`[antigravity] firewall_mode = "assistant"` in `~/.quadgate/config.toml`; set `"strict"` or `QUADGATE_FIREWALL_MODE=strict` for untrusted lockdown). Honors `userSettings.nonWorkspaceFileAccessPolicy` for solo chats, keeps Swarm `assigned_file_cage` strict, allows safe `~/.gemini` workflows and localhost calls, prompts via `"ask"` / `"force_ask"` for `.env` / API-key / untrusted external exfil, and hard-denies disk wipes, `main`/`master` force-pushes, and direct edits to `~/.gemini/config/config.json`.
 4. **PreToolUse Governor (Gate 3)**: Evaluates `invoke_subagent` and `swarm(action="add", ...)` worker spawns using graph blast radius + historical failure rate (`R_hist`) and routes `model` accordingly.
 5. **Stop Audit (Gate 4)**: Verifies truth-oracle checks and prompt completeness on actionable work turns with a strict 1-strike circuit breaker.
 6. **MCP Bridge (`quadgate-kernel`)**: Exposes `quadgate_context_sieve`, `quadgate_verify_mutation`, and `quadgate_audit_completion`.

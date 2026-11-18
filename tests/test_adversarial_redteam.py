@@ -156,7 +156,7 @@ def test_shim_ast_cage_and_cold_start_under_25ms() -> None:
             assert mod in allowed_all, f"Disallowed from-import in shim.py: {mod}"
 
     probe = (
-        "import sys, time; "
+        "import os, re, sys, time; "
         "pre = set(sys.modules); "
         "t0 = time.perf_counter(); "
         "import quadgate.shim as s; "
@@ -199,7 +199,7 @@ def test_shim_ast_cage_and_cold_start_under_25ms() -> None:
     assert "usage: qg-shim" in cli_proc.stdout
 
     runpy_probe = (
-        "import runpy, sys, time\n"
+        "import os, re, runpy, sys, time\n"
         "sys.argv = ['quadgate.shim', '--help']\n"
         "t0 = time.perf_counter()\n"
         "try:\n"

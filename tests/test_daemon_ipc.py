@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 from pathlib import Path
+import time
 from typing import Any
 
 import aiohttp
@@ -50,11 +51,11 @@ async def test_daemon_health_latency_and_auth_paths(tmp_path: Path, monkeypatch:
             async with session.get(f"{base}/v1/health") as warm:
                 assert warm.status == 200
 
-            t0 = asyncio.get_running_loop().time()
+            t0 = time.perf_counter()
             async with session.get(f"{base}/v1/health") as resp:
                 assert resp.status == 200
                 data = await resp.json()
-            latency_ms = (asyncio.get_running_loop().time() - t0) * 1000.0
+            latency_ms = (time.perf_counter() - t0) * 1000.0
             assert latency_ms < 10.0
             assert data["status"] == "ok"
             assert data["version"] == "0.1.0"
@@ -536,6 +537,11 @@ async def test_cli_init_local_calibrate_stats_and_doctor(
         assert (ws / ".quadgate" / "pass0.db").is_file()
         assert (home_dir / "models" / "modernbert-int8.onnx").is_file()
         assert (home_dir / "models" / "tokenizer.json").is_file()
+        # Remove dummy non-protobuf mock assets after verifying `init --local` download
+        # so offline calibration below exercises LocalOnnxDriver's zero_dep fallback cleanly
+        # even when `onnxruntime` and `tokenizers` (`[local]`) are installed.
+        (home_dir / "models" / "modernbert-int8.onnx").unlink()
+        (home_dir / "models" / "tokenizer.json").unlink()
     finally:
         await asset_runner.cleanup()
 

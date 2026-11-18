@@ -371,10 +371,10 @@ def _normalize_rel_posix(raw_path: str, workspace_root: str) -> str:
     cleaned = raw_path.strip()
     if not cleaned:
         return ""
-    ws_real = os.path.realpath(str(Path(workspace_root or ".")))
-    ws_norm = os.path.normcase(ws_real)
     candidate = Path(cleaned)
     if candidate.is_absolute():
+        ws_real = os.path.realpath(str(Path(workspace_root or ".")))
+        ws_norm = os.path.normcase(ws_real)
         target_real = os.path.realpath(str(candidate))
         target_norm = os.path.normcase(target_real)
         try:

@@ -568,6 +568,7 @@ def _command_has_obfuscated_env(
 
 _WS_REALPATH_CACHE: dict[tuple[str, str], tuple[str, str]] = {}
 _TOKEN_CACHE: dict[str, tuple[int, int, str]] = {}
+_LIVE_LOOPBACK_CACHE: set[tuple[str, int, int]] = set()
 
 
 def _fast_realpath(path: str, known_real_base: str | None = None) -> str:
@@ -1388,8 +1389,10 @@ def forward_to_daemon(
         or os.path.expanduser("~/.quadgate/run.token")
     )
     token = ""
+    token_mtime_ns = 0
     try:
         st = os.stat(resolved_token_path)
+        token_mtime_ns = st.st_mtime_ns
         cached_tok = _TOKEN_CACHE.get(resolved_token_path)
         if (
             cached_tok is not None
@@ -1406,6 +1409,7 @@ def forward_to_daemon(
     except OSError:
         _TOKEN_CACHE.pop(resolved_token_path, None)
         token = ""
+        token_mtime_ns = 0
 
     try:
         body_bytes = json.dumps(event_payload, separators=(",", ":")).encode("utf-8")
@@ -1423,10 +1427,17 @@ def forward_to_daemon(
     ).encode("ascii") + body_bytes
 
     connect_timeout = min(effective_timeout, 0.280)
+    live_key = (resolved_host, resolved_port, token_mtime_ns)
+    use_fast_loopback = (
+        os.name == "nt"
+        and token_mtime_ns > 0
+        and resolved_host == "127.0.0.1"
+        and live_key in _LIVE_LOOPBACK_CACHE
+    )
     try:
         with socket.create_connection(
             (resolved_host, resolved_port),
-            timeout=connect_timeout,
+            timeout=None if use_fast_loopback else connect_timeout,
         ) as sock:
             try:
                 sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
@@ -1515,9 +1526,14 @@ def forward_to_daemon(
 
         parsed = json.loads(raw_body.decode("utf-8"))
         if isinstance(parsed, dict):
+            if token_mtime_ns > 0 and resolved_host == "127.0.0.1":
+                if len(_LIVE_LOOPBACK_CACHE) >= 16:
+                    _LIVE_LOOPBACK_CACHE.clear()
+                _LIVE_LOOPBACK_CACHE.add(live_key)
             return parsed
         return None
     except (OSError, ValueError, UnicodeDecodeError, TypeError):
+        _LIVE_LOOPBACK_CACHE.discard(live_key)
         return None
 
 

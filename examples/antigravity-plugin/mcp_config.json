@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "quadgate-kernel": {
+      "command": "python",
+      "args": [
+        "-m",
+        "quadgate.cli",
+        "mcp"
+      ]
+    }
+  }
+}

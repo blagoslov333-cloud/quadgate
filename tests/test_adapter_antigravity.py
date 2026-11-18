@@ -512,3 +512,85 @@ async def test_antigravity_adapter_gate_engine_roundtrip(
     assert out_payload["decision"] == "allow"
     assert "Model" in out_payload["overwrite"]
     assert out_payload["updatedInput"] == out_payload["overwrite"]
+
+
+async def test_antigravity_swarm_gating_and_protojson_formatter(
+    adapter: AntigravityAdapter,
+    tmp_path: Path,
+) -> None:
+    target = tmp_path / "helper.py"
+    target.write_text("def greet() -> str:\n    return 'hi'\n", encoding="utf-8")
+
+    # 1. swarm management action -> FIREWALL (not SUBAGENT_GOVERNOR) and Gate 3 returns ALLOW untouched
+    status_payload = {
+        "hookEventName": "PreToolUse",
+        "conversationId": "swarm-conv-1",
+        "workspacePaths": [str(tmp_path)],
+        "toolCall": {
+            "id": "tc-swarm-status",
+            "name": "swarm",
+            "args": {"action": "status"},
+        },
+    }
+    assert adapter.infer_gate(status_payload) == GateType.FIREWALL
+
+    # 2. swarm worker add -> SUBAGENT_GOVERNOR, parses brief + tasks, sets lowercase `model`
+    add_payload = {
+        "hookEventName": "PreToolUse",
+        "conversationId": "swarm-conv-2",
+        "workspacePaths": [str(tmp_path)],
+        "toolCall": {
+            "id": "tc-swarm-add",
+            "name": "swarm",
+            "args": {
+                "action": "add",
+                "name": "doc-worker",
+                "model": "gemini-4-argon-high",
+                "brief": "Add a docstring to greet in helper.py",
+                "tasks": ["helper.py"],
+            },
+        },
+    }
+    assert adapter.infer_gate(add_payload) == GateType.SUBAGENT_GOVERNOR
+    swarm_event = adapter.parse_event(GateType.SUBAGENT_GOVERNOR, add_payload)
+    assert swarm_event.current_tier == ModelTier.FRONTIER
+    assert "Tasks: helper.py" in (swarm_event.prompt_text or "")
+
+    engine = GateEngine(load_cartridge("software_engineering"))
+    verdict = await engine.evaluate(swarm_event)
+    assert verdict.action == VerdictAction.MODIFY
+    assert verdict.updated_tool_args is not None
+    assert "model" in verdict.updated_tool_args
+    assert "Model" not in verdict.updated_tool_args
+    assert verdict.updated_tool_args["model"] in {
+        "gemini-3.8-flash-low",
+        "gemini-3.8-flash-high",
+        "gemini-4-argon-high",
+    }
+
+    proto = adapter.format_protojson_verdict("PreToolUse", verdict, tool_name="swarm")
+    assert set(proto.keys()) <= {"decision", "reason", "overwrite", "permissionOverrides"}
+    assert proto["decision"] == "allow"
+    assert proto["overwrite"]["model"] == verdict.updated_tool_args["model"]
+
+    # 3. Protojson formatting for PreInvocation & Stop
+    intake_aug = GateVerdict(
+        action=VerdictAction.AUGMENT,
+        gate=GateType.INTAKE,
+        tail_hints=["helper.py"],
+    )
+    assert adapter.format_protojson_verdict("PreInvocation", intake_aug) == {
+        "injectSteps": [{"systemMessage": {"systemMessage": "[QUADGATE_CONTEXT_HINTS]\n- helper.py"}}]
+    }
+    stop_allow = GateVerdict(action=VerdictAction.ALLOW, gate=GateType.STOP_AUDIT)
+    assert adapter.format_protojson_verdict("Stop", stop_allow) == {}
+    stop_cont = GateVerdict(
+        action=VerdictAction.AUGMENT,
+        gate=GateType.STOP_AUDIT,
+        reason="Missing unit test.",
+        unaddressed_clauses=["Add test_greet"],
+    )
+    assert adapter.format_protojson_verdict("Stop", stop_cont) == {
+        "decision": "continue",
+        "reason": "Missing unit test. Unaddressed clauses: Add test_greet",
+    }

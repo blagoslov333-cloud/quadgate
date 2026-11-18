@@ -1,0 +1,48 @@
+{
+  "quadgate": {
+    "enabled": true,
+    "SessionStart": [
+      {
+        "type": "command",
+        "command": "python hooks/antigravity_hook.py --event session_start",
+        "timeout": 15
+      }
+    ],
+    "PreInvocation": [
+      {
+        "type": "command",
+        "command": "python hooks/antigravity_hook.py --event pre_invocation",
+        "timeout": 12
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "^(write_to_file|replace_file_content|multi_replace_file_content|write_file|edit_file|delete_file|run_command)$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python hooks/antigravity_hook.py --event firewall",
+            "timeout": 12
+          }
+        ]
+      },
+      {
+        "matcher": "^(invoke_subagent|swarm)$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python hooks/antigravity_hook.py --event subagent_governor",
+            "timeout": 12
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "type": "command",
+        "command": "python hooks/antigravity_hook.py --event stop",
+        "timeout": 15
+      }
+    ]
+  }
+}

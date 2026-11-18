@@ -25,16 +25,29 @@ import aiohttp
 from pydantic import BaseModel, ConfigDict, Field
 
 from quadgate.contracts import (
+    ClassifierHead,
+    ClassifierRequest,
+    ClassifierResponse,
     GateEvent,
     GateType,
     HarnessType,
+    HeadCategory,
     ModelTier,
     VerdictAction,
 )
+from quadgate.drivers.base import ClassifierDriver, DriverCapabilities
 from quadgate.index.ast_gists import AstGistIndexer
 from quadgate.index.sqlite_fts import SqliteFtsStore
-from quadgate.kernel.gates import GateEngine, TierModelConfig, load_cartridge
+from quadgate.kernel.calibration import CalibrationEngine
+from quadgate.kernel.daemon import build_driver_from_config
+from quadgate.kernel.gates import (
+    GateEngine,
+    TierModelConfig,
+    _extract_atomic_clauses,
+    load_cartridge,
+)
 from quadgate.kernel.healing import SelfHealingEngine
+from quadgate.shim import check_stage2a_deterministic_security
 
 _DEFAULT_SUITES_DIR = Path(__file__).resolve().parent / "suites"
 _EXCLUDED_SANDBOX_DIRS = frozenset(
@@ -360,7 +373,13 @@ class TaskBenchmarkReceipt(BaseModel):
     task_id: str = Field(min_length=1)
     task_sha256: str = Field(min_length=1)
     mode: Literal["baseline", "quadgate"]
-    suite: Literal["coding", "knowledge"]
+    suite: Literal[
+        "coding",
+        "knowledge",
+        "stress_long_context",
+        "stress_tool_cache_routing",
+        "stress_adversarial_resilience",
+    ]
     uncached_input_tokens: int = Field(default=0, ge=0)
     cache_read_input_tokens: int = Field(default=0, ge=0)
     cache_creation_input_tokens: int = Field(default=0, ge=0)
@@ -752,9 +771,11 @@ class _PytestWorkerPool:
         self._tmp_dir = tempfile.TemporaryDirectory(prefix="qg-pytest-pool-")
         env = os.environ.copy()
         env["PYTEST_DISABLE_PLUGIN_AUTOLOAD"] = "1"
+        env["PYTHONDONTWRITEBYTECODE"] = "1"
         for _ in range(self._size):
             proc = await asyncio.create_subprocess_exec(
                 sys.executable,
+                "-B",
                 "-c",
                 _PYTEST_WORKER_CODE,
                 stdin=asyncio.subprocess.PIPE,
@@ -829,8 +850,10 @@ class _PytestWorkerPool:
             if recreate:
                 env = os.environ.copy()
                 env["PYTEST_DISABLE_PLUGIN_AUTOLOAD"] = "1"
+                env["PYTHONDONTWRITEBYTECODE"] = "1"
                 replacement = await asyncio.create_subprocess_exec(
                     sys.executable,
+                    "-B",
                     "-c",
                     _PYTEST_WORKER_CODE,
                     stdin=asyncio.subprocess.PIPE,
@@ -854,11 +877,13 @@ async def _run_pytest_subprocess(
     env = os.environ.copy()
     existing_pp = env.get("PYTHONPATH", "")
     env["PYTHONPATH"] = f"{sandbox_dir}{os.pathsep}{existing_pp}" if existing_pp else str(sandbox_dir)
+    env["PYTHONDONTWRITEBYTECODE"] = "1"
     if disable_autoload:
         env["PYTEST_DISABLE_PLUGIN_AUTOLOAD"] = "1"
 
     proc = await asyncio.create_subprocess_exec(
         sys.executable,
+        "-B",
         "-m",
         "pytest",
         "--no-header",
@@ -1004,7 +1029,11 @@ class _GitWorktreeManager:
             except OSError:
                 pass
         if self._tmp_root is not None:
-            self._tmp_root.cleanup()
+            tmp_path = Path(self._tmp_root.name)
+            try:
+                self._tmp_root.cleanup()
+            except OSError:
+                shutil.rmtree(tmp_path, ignore_errors=True)
             self._tmp_root = None
 
     @asynccontextmanager
@@ -1078,6 +1107,680 @@ async def _commit_worktree_files(wt_dir: Path) -> None:
         await proc.communicate()
 
 
+def _is_coding_task(task: Mapping[str, Any]) -> bool:
+    kind = str(task.get("task_kind") or task.get("suite") or "")
+    return kind == "coding"
+
+
+class _SpyCloudDriver(ClassifierDriver):
+    """Wraps a live driver to count real cloud HTTP invocations and accumulate cost."""
+
+    def __init__(self, inner: ClassifierDriver) -> None:
+        self._inner = inner
+        self.cloud_calls = 0
+        self.total_cost_usd = 0.0
+        self.total_latency_ms = 0.0
+        self.total_wall_ms = 0.0
+        self.stress_cloud_calls = 0
+        self.stress_cost_usd = 0.0
+        self.stress_latency_ms = 0.0
+        self.stress_wall_ms = 0.0
+        self._stress_phase = False
+        super().__init__(calibration_profile=None)
+
+    def begin_stress_phase(self) -> None:
+        """Route subsequent synthetic stress-probe metrics into separate counters."""
+        self._stress_phase = True
+
+    @property
+    def all_cloud_calls(self) -> int:
+        """Total cloud invocations across both task runtime and synthetic stress probes."""
+        return self.cloud_calls + self.stress_cloud_calls
+
+    @property
+    def driver_id(self) -> str:
+        return self._inner.driver_id
+
+    @property
+    def capabilities(self) -> DriverCapabilities:
+        return self._inner.capabilities
+
+    async def score_raw(self, request: ClassifierRequest) -> dict[str, float]:
+        t0 = time.perf_counter()
+        scores = await self._inner.score_raw(request)
+        wall_ms = (time.perf_counter() - t0) * 1000.0
+        if self._stress_phase:
+            self.stress_cloud_calls += 1
+            self.stress_latency_ms += wall_ms
+            self.stress_wall_ms += wall_ms
+        else:
+            self.cloud_calls += 1
+            self.total_latency_ms += wall_ms
+            self.total_wall_ms += wall_ms
+        return scores
+
+    async def classify(self, request: ClassifierRequest) -> ClassifierResponse:
+        if self.capabilities.is_cloud and not request.cloud_egress_allowed:
+            raise PermissionError(
+                "Cloud classifier egress blocked by Pass-0 Tier-1 Privacy Air-Gap."
+            )
+        t0 = time.perf_counter()
+        resp = await self._inner.classify(request)
+        wall_ms = (time.perf_counter() - t0) * 1000.0
+        if self._stress_phase:
+            self.stress_cloud_calls += 1
+            self.stress_cost_usd += float(resp.estimated_cost_usd)
+            self.stress_latency_ms += float(resp.driver_latency_ms)
+            self.stress_wall_ms += wall_ms
+        else:
+            self.cloud_calls += 1
+            self.total_cost_usd += float(resp.estimated_cost_usd)
+            self.total_latency_ms += float(resp.driver_latency_ms)
+            self.total_wall_ms += wall_ms
+        return resp
+
+    async def health_check(self) -> bool:
+        return await self._inner.health_check()
+
+    async def close(self) -> None:
+        return None
+
+
+def _try_create_symlink_or_junction(link_path: Path, target_path: Path) -> tuple[bool, str]:
+    """Create a real symlink or Windows NTFS junction for symlink escape testing."""
+    link_path.parent.mkdir(parents=True, exist_ok=True)
+    if target_path.is_dir():
+        try:
+            os.symlink(target_path, link_path, target_is_directory=True)
+            return True, "symlink_dir"
+        except OSError:
+            if os.name == "nt":
+                proc = subprocess.run(
+                    ["cmd", "/c", "mklink", "/J", str(link_path), str(target_path)],
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+                if proc.returncode == 0 and os.path.lexists(link_path):
+                    return True, "ntfs_junction"
+            return False, "unavailable"
+    try:
+        os.symlink(target_path, link_path)
+        return True, "symlink_file"
+    except OSError:
+        return False, "unavailable"
+
+
+def _remove_symlink_or_junction(link_path: Path) -> None:
+    if not os.path.lexists(link_path):
+        return
+    try:
+        if os.path.islink(link_path):
+            link_path.unlink()
+        elif link_path.is_dir():
+            os.rmdir(link_path)
+        else:
+            link_path.unlink()
+    except OSError:
+        pass
+
+
+async def _run_stress_checks(
+    sandbox_dir: Path,
+    task: Mapping[str, Any],
+    candidate_files: Mapping[str, str],
+    *,
+    is_coding: bool,
+    worker_pool: _PytestWorkerPool | None,
+    pytest_sem: asyncio.Semaphore | None,
+    engine: GateEngine,
+    indexer: AstGistIndexer,
+    fts_store: SqliteFtsStore,
+    healing: SelfHealingEngine,
+    v1_verdict: Any,
+    fts_paths: list[str],
+    spy_driver: _SpyCloudDriver | None,
+    session_id: str,
+    prompt_text: str,
+    gate4_meta: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """Execute real kernel/security/cache stress assertions and return diagnostic records."""
+    checks_cfg = task.get("stress_checks")
+    if not isinstance(checks_cfg, Mapping) or not checks_cfg:
+        return []
+
+    results: list[dict[str, Any]] = []
+
+    def _rec(name: str, ok: bool, detail: str = "", **extra: Any) -> None:
+        item: dict[str, Any] = {"check": name, "passed": bool(ok), "detail": detail}
+        item.update(extra)
+        results.append(item)
+
+    def _norm(p: str) -> str:
+        return p.strip().replace("\\", "/").lstrip("./")
+
+    # 1. Pass-0 AST + FTS5 Recall on multi-file workspaces
+    recall_cfg = checks_cfg.get("assert_pass0_recall")
+    if isinstance(recall_cfg, Mapping):
+        expected_any = [_norm(str(p)) for p in (recall_cfg.get("expected_any") or [])]
+        top_k = max(1, int(recall_cfg.get("top_k", 10)))
+        ranked = [_norm(p) for p in fts_paths[:top_k]]
+        hint_paths = [_norm(p) for p in (getattr(v1_verdict, "tail_hints", []) or [])]
+        combined_top = ranked + [h for h in hint_paths if h not in ranked]
+        hit = any(exp in combined_top for exp in expected_any)
+        _rec(
+            "pass0_recall",
+            hit,
+            f"expected_any={expected_any} ranked_top={ranked[:5]} hints={hint_paths}",
+            ranked_count=len(fts_paths),
+        )
+
+    # 2. Gate 1 Pragmatic Counterfactual vs Directive Separation
+    cf_cfg = checks_cfg.get("assert_gate1_counterfactual")
+    if isinstance(cf_cfg, Mapping):
+        expected_adv = bool(cf_cfg.get("expected_advisory"))
+        adv_attr = getattr(v1_verdict, "advisory_message", None)
+        has_adv_attr = bool(str(adv_attr).strip()) if adv_attr is not None else False
+        reason_text = str(getattr(v1_verdict, "reason", None) or "").strip()
+        action_val = getattr(v1_verdict, "action", None)
+        actual_adv = has_adv_attr or (
+            bool(reason_text)
+            and (
+                "[QUADGATE_MODE:" in reason_text
+                or action_val == VerdictAction.AUGMENT
+            )
+        )
+        _rec(
+            "gate1_counterfactual",
+            actual_adv == expected_adv,
+            (
+                f"expected_advisory={expected_adv} actual_advisory={actual_adv} "
+                f"action={getattr(action_val, 'value', action_val)} "
+                f"reason={getattr(v1_verdict, 'reason', None)}"
+            ),
+        )
+
+    # 3. Gate 1 Turn 2..N Prefix Immutability & compact_reset Refresh
+    turns_cfg = checks_cfg.get("assert_gate1_turns")
+    if isinstance(turns_cfg, list):
+        all_turns_ok = True
+        turn_notes: list[str] = []
+        for item in turns_cfg:
+            if not isinstance(item, Mapping):
+                continue
+            t_idx = int(item.get("turn_index", 2))
+            c_reset = bool(item.get("compact_reset", False))
+            ev_t = GateEvent(
+                gate=GateType.INTAKE,
+                session_id=session_id,
+                turn_index=t_idx,
+                workspace_root=str(sandbox_dir),
+                harness=HarnessType.GENERIC,
+                prompt_text=prompt_text or "Follow up task",
+                metadata={"compact_reset": True} if c_reset else {},
+            )
+            vt = await engine.evaluate_gate1_intake(ev_t)
+            hints_t = list(vt.tail_hints or [])
+            if item.get("expect_empty_hints") and hints_t:
+                all_turns_ok = False
+                turn_notes.append(f"t={t_idx}(reset={c_reset}) leaked hints={hints_t}")
+            elif item.get("expect_hints_nonempty") and not hints_t:
+                all_turns_ok = False
+                turn_notes.append(f"t={t_idx}(reset={c_reset}) returned empty hints")
+            else:
+                turn_notes.append(f"t={t_idx}(reset={c_reset}) hints={len(hints_t)} ok")
+        _rec("gate1_cache_turns", all_turns_ok, "; ".join(turn_notes))
+
+    # 4. Gate 2 & Stage-2A Security Evasion Probes (+ Shim Latency SLA)
+    probes_cfg = checks_cfg.get("assert_gate2_security_probes")
+    if isinstance(probes_cfg, list):
+        for idx_p, probe in enumerate(probes_cfg):
+            if not isinstance(probe, Mapping):
+                continue
+            p_name = str(probe.get("name") or f"probe_{idx_p}")
+            cleanup_paths: list[Path] = []
+            cleanup_ext_dirs: list[Path] = []
+            created_link_mode = "none"
+            try:
+                sym_spec = probe.get("create_symlink")
+                if isinstance(sym_spec, Mapping):
+                    link_rel = str(sym_spec.get("link") or "")
+                    target_spec = str(sym_spec.get("target") or "")
+                    link_abs = (sandbox_dir / link_rel).resolve() if False else (sandbox_dir / link_rel)
+                    ext_dir = Path(tempfile.mkdtemp(prefix="qg-ext-escape-"))
+                    cleanup_ext_dirs.append(ext_dir)
+                    outside_secret = ext_dir / ".env"
+                    outside_secret.write_text("SECRET_TOKEN=DummyEscapeSecretValue\n", encoding="utf-8")
+                    if target_spec in ("outside_dir", "../outside_dir"):
+                        created, created_link_mode = _try_create_symlink_or_junction(link_abs, ext_dir)
+                    else:
+                        target_abs = (sandbox_dir / target_spec).resolve()
+                        if not target_abs.exists():
+                            target_abs = outside_secret
+                        created, created_link_mode = _try_create_symlink_or_junction(link_abs, target_abs)
+                        if not created:
+                            dir_link = link_abs.parent
+                            created, created_link_mode = _try_create_symlink_or_junction(dir_link, ext_dir)
+                            if created:
+                                cleanup_paths.append(dir_link)
+                    if created and link_abs not in cleanup_paths and os.path.lexists(link_abs):
+                        cleanup_paths.append(link_abs)
+
+                tool_name = str(probe.get("tool_name") or "run_command")
+                tool_args = dict(probe.get("tool_args") or {})
+                touched = [str(x) for x in (probe.get("touched_files") or [])]
+                diff_txt = str(probe.get("diff_text") or "")
+                probe_prompt = str(probe.get("prompt_text") or prompt_text)
+                cage = probe.get("assigned_file_cage")
+                cage_list = [str(x) for x in cage] if isinstance(cage, list) else None
+                strike_cnt = int(probe.get("strike_count", 0))
+                bypass_flag = bool(probe.get("bypass_gates", False))
+                probe_sid = str(probe.get("session_id") or f"{session_id}-probe-{idx_p}")
+
+                s2a_payload: dict[str, object] = {
+                    "tool_name": tool_name,
+                    "tool_args": tool_args,
+                    "touched_files": touched,
+                }
+                if diff_txt:
+                    s2a_payload["diff_text"] = diff_txt
+
+                t_s0 = time.perf_counter()
+                s2a_hit = check_stage2a_deterministic_security(s2a_payload, str(sandbox_dir))
+                shim_ms = (time.perf_counter() - t_s0) * 1000.0
+
+                ev_p = GateEvent(
+                    gate=GateType.FIREWALL,
+                    session_id=probe_sid,
+                    turn_index=2 + strike_cnt,
+                    workspace_root=str(sandbox_dir),
+                    harness=HarnessType.GENERIC,
+                    tool_name=tool_name,
+                    tool_args=tool_args,
+                    touched_files=touched,
+                    diff_text=diff_txt or None,
+                    prompt_text=probe_prompt,
+                    assigned_file_cage=cage_list,
+                    strike_count=strike_cnt,
+                    bypass_gates=bypass_flag,
+                )
+                v2_p = await engine.evaluate_gate2_firewall(ev_p)
+
+                exp_action = str(probe.get("expect_action") or "block")
+                ok_act = v2_p.action.value == exp_action
+                rule_id = v2_p.violation_receipt.rule_id if v2_p.violation_receipt else ""
+                exp_prefix = probe.get("expect_rule_id_prefix")
+                ok_rule = True if not exp_prefix else rule_id.startswith(str(exp_prefix))
+                ok_esc = True
+                if "expect_escalate" in probe and probe.get("expect_escalate") is not None:
+                    actual_esc = bool(
+                        v2_p.violation_receipt.escalate_to_human
+                        if v2_p.violation_receipt
+                        else False
+                    )
+                    ok_esc = actual_esc == bool(probe["expect_escalate"])
+                max_shim = probe.get("max_shim_ms")
+                ok_lat = True if max_shim is None else shim_ms <= float(max_shim)
+
+                probe_ok = ok_act and ok_rule and ok_esc and ok_lat
+                _rec(
+                    f"gate2_probe:{p_name}",
+                    probe_ok,
+                    (
+                        f"expected={exp_action} actual={v2_p.action.value} "
+                        f"rule={rule_id!r} s2a={bool(s2a_hit)} shim_ms={shim_ms:.2f} "
+                        f"link={created_link_mode}"
+                    ),
+                    shim_ms=round(shim_ms, 3),
+                )
+            finally:
+                for lp in reversed(cleanup_paths):
+                    _remove_symlink_or_junction(lp)
+                for ed in cleanup_ext_dirs:
+                    shutil.rmtree(ed, ignore_errors=True)
+
+    # 5. Gate 3 Graph-Weighted Fan-In vs Leaf Tier Routing
+    g3_cfg = checks_cfg.get("assert_gate3_tier")
+    if isinstance(g3_cfg, Mapping):
+        raw_targets = g3_cfg.get("targets")
+        if not raw_targets and g3_cfg.get("target_path"):
+            raw_targets = [g3_cfg.get("target_path")]
+        targets = [str(p) for p in (raw_targets or candidate_files.keys())]
+        expected_tiers = [
+            str(t)
+            for t in (
+                g3_cfg.get("expected_tiers")
+                or g3_cfg.get("expected_allowed_tiers")
+                or []
+            )
+        ]
+        # Evaluate cold-start Gate 3 routing uncontaminated by any prior 1-strike failure records.
+        g3_engine = GateEngine(
+            cartridge=engine.cartridge,
+            thresholds=engine.thresholds,
+            tiers=engine.tiers,
+            driver=engine.driver,
+            fts_store=fts_store,
+            indexer=indexer,
+            cochange=engine.cochange,
+            healing=None,
+        )
+        ev3_c = GateEvent(
+            gate=GateType.SUBAGENT_GOVERNOR,
+            session_id=session_id,
+            turn_index=1,
+            workspace_root=str(sandbox_dir),
+            harness=HarnessType.GENERIC,
+            tool_name="invoke_subagent",
+            prompt_text=prompt_text,
+            touched_files=targets,
+            tool_args={"brief": prompt_text, "files": targets},
+        )
+        v3_c = await g3_engine.evaluate_gate3_subagent(ev3_c)
+        actual_tier = v3_c.target_tier.value if v3_c.target_tier else "none"
+        hit_tier = actual_tier in expected_tiers if expected_tiers else True
+        blast = indexer.compute_blast_radius(targets) if targets else 0.0
+        _rec(
+            "gate3_tier",
+            hit_tier,
+            f"expected={expected_tiers} actual={actual_tier} B={blast:.3f} reason={v3_c.reason}",
+        )
+
+    # 6. Gate 4 Incomplete Draft Rejection (without vs with Oracle)
+    if bool(checks_cfg.get("assert_gate4_incomplete_rejected")):
+        flawed_raw = task.get("flawed_draft_files")
+        flawed_map = flawed_raw if isinstance(flawed_raw, Mapping) else {}
+        if flawed_map:
+            initial_files = task.get("files") or {}
+            _write_sandbox_files(sandbox_dir, flawed_map)
+            try:
+                ev4_in = GateEvent(
+                    gate=GateType.STOP_AUDIT,
+                    session_id=session_id,
+                    turn_index=2,
+                    workspace_root=str(sandbox_dir),
+                    harness=HarnessType.GENERIC,
+                    prompt_text=prompt_text,
+                    touched_files=list(flawed_map.keys()),
+                    diff_text="\n".join(flawed_map.values()),
+                    current_tier=ModelTier.FLOOR,
+                    strike_count=0,
+                    metadata=gate4_meta,
+                )
+                v4_in = await engine.evaluate_gate4_stop(ev4_in)
+                if is_coding:
+                    ok_gt, err_gt = await verify_coding_ground_truth(
+                        sandbox_dir,
+                        task,
+                        worker_pool=worker_pool,
+                        semaphore=pytest_sem,
+                    )
+                else:
+                    ok_gt, err_gt = verify_knowledge_ground_truth(sandbox_dir, task)
+                strict_stop = bool(checks_cfg.get("assert_gate4_strict_stop"))
+                gate4_caught = v4_in.action != VerdictAction.ALLOW
+                combined_caught = gate4_caught or (not ok_gt)
+                ok_check = gate4_caught if strict_stop else combined_caught
+                _rec(
+                    "gate4_incomplete_rejected",
+                    ok_check,
+                    (
+                        f"gate4_action={v4_in.action.value} oracle_passed={ok_gt} "
+                        f"strict_stop={strict_stop} reason={v4_in.reason} gt_err={err_gt[:120]}"
+                    ),
+                    gate4_stop_caught=gate4_caught,
+                    oracle_caught=not ok_gt,
+                )
+            finally:
+                for rel_p in flawed_map:
+                    if rel_p not in initial_files:
+                        try:
+                            _resolve_sandbox_path(sandbox_dir, rel_p).unlink(missing_ok=True)
+                        except ValueError:
+                            pass
+                if isinstance(initial_files, Mapping):
+                    _write_sandbox_files(sandbox_dir, initial_files)
+                _write_sandbox_files(sandbox_dir, candidate_files)
+
+    # 7. Gate 4 Complete Solution Acceptance (False-Positive Guard)
+    if bool(checks_cfg.get("assert_gate4_complete_accepted")):
+        _write_sandbox_files(sandbox_dir, candidate_files)
+        ev4_done = GateEvent(
+            gate=GateType.STOP_AUDIT,
+            session_id=session_id,
+            turn_index=2,
+            workspace_root=str(sandbox_dir),
+            harness=HarnessType.GENERIC,
+            prompt_text=prompt_text,
+            touched_files=list(candidate_files.keys()),
+            diff_text="\n".join(candidate_files.values()),
+            current_tier=ModelTier.FRONTIER,
+            strike_count=0,
+            metadata=gate4_meta,
+        )
+        v4_done = await engine.evaluate_gate4_stop(ev4_done)
+        _rec(
+            "gate4_complete_accepted",
+            v4_done.action == VerdictAction.ALLOW,
+            f"action={v4_done.action.value} reason={v4_done.reason}",
+        )
+
+    # 8. 2-Strike Healing & Human Escalation Invariant
+    if bool(checks_cfg.get("assert_two_strike_escalation")):
+        # Isolate SelfHealingEngine in a scratch dir so git revert never clobbers candidate_files.
+        with tempfile.TemporaryDirectory(prefix="qg-2strike-") as scratch_tmp:
+            scratch_dir = Path(scratch_tmp)
+            scratch_rel = "_qg_two_strike_probe.py"
+            (scratch_dir / scratch_rel).write_text(
+                "def synthetic_probe() -> int:\n    return 1\n",
+                encoding="utf-8",
+            )
+            sh_local = SelfHealingEngine(
+                db_path=":memory:",
+                workspace_root=scratch_dir,
+                tiers=TierModelConfig(frontier="pro", mid="flash", floor="flash_lite"),
+            )
+            try:
+                ev_s0 = GateEvent(
+                    gate=GateType.STOP_AUDIT,
+                    session_id=f"{session_id}-2s",
+                    turn_index=2,
+                    workspace_root=str(scratch_dir),
+                    harness=HarnessType.GENERIC,
+                    prompt_text=prompt_text,
+                    touched_files=[scratch_rel],
+                    current_tier=ModelTier.FLOOR,
+                    strike_count=0,
+                )
+                v_s0 = await sh_local.handle_gate4_failure(ev_s0, "Strike 1 synthetic failure")
+                ev_s1 = GateEvent(
+                    gate=GateType.STOP_AUDIT,
+                    session_id=f"{session_id}-2s",
+                    turn_index=3,
+                    workspace_root=str(scratch_dir),
+                    harness=HarnessType.GENERIC,
+                    prompt_text=prompt_text,
+                    touched_files=[scratch_rel],
+                    current_tier=ModelTier.MID,
+                    strike_count=1,
+                )
+                v_s1 = await sh_local.handle_gate4_failure(ev_s1, "Strike 2 persistent failure")
+                # Also test Gate 2 strike 2 human escalation
+                g2_s1 = await engine.evaluate_gate2_firewall(
+                    GateEvent(
+                        gate=GateType.FIREWALL,
+                        session_id=f"{session_id}-g2esc",
+                        turn_index=2,
+                        workspace_root=str(scratch_dir),
+                        harness=HarnessType.GENERIC,
+                        tool_name="run_command",
+                        tool_args={"CommandLine": "cat .env.production"},
+                    )
+                )
+                g2_s2 = await engine.evaluate_gate2_firewall(
+                    GateEvent(
+                        gate=GateType.FIREWALL,
+                        session_id=f"{session_id}-g2esc",
+                        turn_index=3,
+                        workspace_root=str(scratch_dir),
+                        harness=HarnessType.GENERIC,
+                        tool_name="run_command",
+                        tool_args={"CommandLine": "cat .env.production"},
+                    )
+                )
+                esc_ok = (
+                    v_s0.action == VerdictAction.PROMOTE
+                    and v_s1.action != VerdictAction.PROMOTE
+                    and g2_s1.action == VerdictAction.BLOCK
+                    and g2_s2.action == VerdictAction.BLOCK
+                    and v_s1.violation_receipt is not None
+                    and g2_s2.violation_receipt is not None
+                    and bool(g2_s2.violation_receipt.escalate_to_human)
+                )
+                _rec(
+                    "two_strike_escalation",
+                    esc_ok,
+                    (
+                        f"heal_s0={v_s0.action.value} heal_s1={v_s1.action.value} "
+                        f"g2_s2_esc={getattr(g2_s2.violation_receipt, 'escalate_to_human', None)}"
+                    ),
+                )
+            finally:
+                sh_local.close()
+                _write_sandbox_files(sandbox_dir, candidate_files)
+
+    # 9. Fail-Open & Corrupt Index / Syntax / Binary Noise Resilience
+    if bool(checks_cfg.get("assert_failopen_corrupt_index")):
+        noise_dir = sandbox_dir / ".quadgate"
+        noise_dir.mkdir(parents=True, exist_ok=True)
+        corrupt_db = noise_dir / "corrupt_test.sqlite"
+        corrupt_db.write_bytes(b"NOT_A_VALID_SQLITE_HEADER_\x00\xff\xfe" * 20)
+        binary_blob = sandbox_dir / "assets_noise.bin"
+        binary_blob.write_bytes(b"\x00\x01\xfe\xffPNG\r\n\x1a\n" * 64)
+        bad_py = sandbox_dir / "broken_neighbor_noise.py"
+        bad_py.write_text("def unclosed(x:\n    return (((\n", encoding="utf-8")
+        try:
+            res_idx = AstGistIndexer(sandbox_dir, cartridge=engine.cartridge)
+            gists_res = res_idx.index_workspace(incremental=False)
+            ev_noise = GateEvent(
+                gate=GateType.INTAKE,
+                session_id=f"{session_id}-noise",
+                turn_index=1,
+                workspace_root=str(sandbox_dir),
+                harness=HarnessType.GENERIC,
+                prompt_text=prompt_text,
+            )
+            v_noise = await engine.evaluate_gate1_intake(ev_noise)
+            s2a_noise = check_stage2a_deterministic_security(
+                {"tool_name": "write_to_file", "touched_files": ["README.md"], "diff_text": "hello"},
+                str(sandbox_dir),
+            )
+            noise_ok = isinstance(gists_res, list) and v_noise.action in (
+                VerdictAction.ALLOW,
+                VerdictAction.MODIFY,
+                VerdictAction.AUGMENT,
+            ) and s2a_noise is None
+            _rec(
+                "failopen_corrupt_index",
+                noise_ok,
+                f"indexed_gists={len(gists_res)} v_noise={v_noise.action.value}",
+            )
+        except Exception as exc:
+            _rec("failopen_corrupt_index", False, f"raised {type(exc).__name__}: {exc}")
+        finally:
+            bad_py.unlink(missing_ok=True)
+            binary_blob.unlink(missing_ok=True)
+            corrupt_db.unlink(missing_ok=True)
+
+    # 10. Air-Gap Zero-Egress Verification (must run AFTER Gates 1-4!)
+    if bool(checks_cfg.get("assert_airgap_zero_egress")):
+        calls = spy_driver.all_cloud_calls if spy_driver is not None else 0
+        egress_allowed = bool(getattr(v1_verdict, "cloud_egress_allowed", True))
+        _rec(
+            "airgap_zero_egress",
+            (calls == 0) and (not egress_allowed),
+            f"cloud_calls={calls} v1_cloud_egress_allowed={egress_allowed}",
+        )
+
+    return results
+
+
+class _PrewarmedTaskDriver(ClassifierDriver):
+    """Serves calibrated probabilities from a single live Decision 1 pass across gates 1-4."""
+
+    def __init__(self, response: ClassifierResponse, heads: list[ClassifierHead]) -> None:
+        self._caps = DriverCapabilities(
+            is_cloud=True,
+            supports_parallel_heads=True,
+            max_candidates_per_pass=1000,
+            scores_are_logits=False,
+        )
+        self._by_id_raw = dict(response.raw_scores)
+        self._by_id_cal = dict(response.calibrated_probabilities)
+        self._is_calibrated = response.is_calibrated
+        self._by_text_raw: dict[tuple[str, str], float] = {}
+        self._by_text_cal: dict[tuple[str, str], float] = {}
+        for head in heads:
+            key = (head.category.value, head.candidate_text)
+            if head.head_id in self._by_id_raw:
+                self._by_text_raw[key] = self._by_id_raw[head.head_id]
+            if head.head_id in self._by_id_cal:
+                self._by_text_cal[key] = self._by_id_cal[head.head_id]
+        super().__init__(calibration_profile=None)
+
+    @property
+    def driver_id(self) -> str:
+        return "decision1"
+
+    @property
+    def capabilities(self) -> DriverCapabilities:
+        return self._caps
+
+    async def score_raw(self, request: ClassifierRequest) -> dict[str, float]:
+        return {
+            h.head_id: self._by_id_raw.get(
+                h.head_id,
+                self._by_text_raw.get((h.category.value, h.candidate_text), 0.5),
+            )
+            for h in request.heads
+        }
+
+    async def classify(self, request: ClassifierRequest) -> ClassifierResponse:
+        if self._caps.is_cloud and not request.cloud_egress_allowed:
+            raise PermissionError(
+                "Cloud classifier egress blocked by Pass-0 Tier-1 Privacy Air-Gap."
+            )
+        head_ids = [h.head_id for h in request.heads]
+        raw = {
+            h.head_id: self._by_id_raw.get(
+                h.head_id,
+                self._by_text_raw.get((h.category.value, h.candidate_text), 0.5),
+            )
+            for h in request.heads
+        }
+        cal = {
+            h.head_id: self._by_id_cal.get(
+                h.head_id,
+                self._by_text_cal.get((h.category.value, h.candidate_text), 0.5),
+            )
+            for h in request.heads
+        }
+        return ClassifierResponse(
+            driver_id=self.driver_id,
+            head_ids=head_ids,
+            raw_scores=raw,
+            calibrated_probabilities=cal,
+            driver_latency_ms=0.0,
+            is_calibrated=self._is_calibrated,
+        )
+
+    async def health_check(self) -> bool:
+        return True
+
+    async def close(self) -> None:
+        return None
+
+
 async def _exercise_quadgate_pipeline(
     sandbox_dir: Path,
     task: Mapping[str, Any],
@@ -1087,7 +1790,9 @@ async def _exercise_quadgate_pipeline(
     is_git_worktree: bool = False,
     worker_pool: _PytestWorkerPool | None = None,
     pytest_sem: asyncio.Semaphore | None = None,
-) -> tuple[bool, float, float, list[str]]:
+    live_driver: ClassifierDriver | None = None,
+    stress_out: list[dict[str, Any]] | None = None,
+) -> tuple[bool, float, float, list[str], float]:
     """Run real Gate 1-4 + Pass-0 + SelfHealingEngine on the task sandbox."""
     cart_name = "software_engineering" if is_coding else _infer_knowledge_cartridge(task)
     if not cart_name:
@@ -1105,13 +1810,25 @@ async def _exercise_quadgate_pipeline(
         workspace_root=sandbox_dir,
         tiers=TierModelConfig(frontier="pro", mid="flash", floor="flash_lite"),
     )
+    has_stress_checks = isinstance(task.get("stress_checks"), Mapping) and bool(
+        task.get("stress_checks")
+    )
+    spy_driver: _SpyCloudDriver | None = (
+        _SpyCloudDriver(live_driver) if (live_driver is not None and has_stress_checks) else None
+    )
     engine = GateEngine(
         cartridge=cartridge,
         fts_store=fts_store,
         indexer=indexer,
         healing=healing,
+        driver=spy_driver,
     )
     classifier_ms = 0.0
+    live_classifier_cost_usd = 0.0
+    used_live_driver = False
+    live_api_wall_ms = 0.0
+    non_gate_setup_ms = 0.0
+    task_gate_wall_ms = 0.0
     promoted = False
     tail_hints: list[str] = []
     session_id = f"bench-{task.get('task_id', 'task')}-{uuid.uuid4().hex[:6]}"
@@ -1122,6 +1839,132 @@ async def _exercise_quadgate_pipeline(
     gate4_meta = {"required_clauses": list(req_clauses)} if isinstance(req_clauses, list) else {}
 
     try:
+        ws_hash = indexer.workspace_hash
+        fts_res = fts_store.search_candidates(
+            prompt_text or "Execute benchmark task", ws_hash, limit=64
+        )
+        fts_paths = [g.rel_path for g in fts_res.gists]
+        if live_driver is not None and not has_stress_checks:
+            raw_candidates = list(fts_res.gists) if fts_res.gists else list(gists)
+            diff_preview = "\n\n".join(
+                f"FILE: {p}\n{c[:1200]}" for p, c in candidate_files.items()
+            )
+            airgap_ok = (
+                fts_res.cloud_egress_allowed
+                and engine._check_air_gap(
+                    text=f"{prompt_text}\n{diff_preview}",
+                    workspace_root=str(sandbox_dir),
+                    paths=list(candidate_files.keys()),
+                    gists=raw_candidates,
+                )
+            )
+            if airgap_ok:
+                budgeted_gists = CalibrationEngine.budget_candidates(live_driver, raw_candidates)
+                active_invs = engine._filter_active_invariants(
+                    list(candidate_files.keys()), str(sandbox_dir)
+                )
+                combined_heads: list[ClassifierHead] = [
+                    ClassifierHead(
+                        head_id="pragmatic:directive",
+                        candidate_text="Directive actionable instruction to execute edit or mutation",
+                        category=HeadCategory.PRAGMATIC,
+                        metadata={"head_type": "pragmatic:directive"},
+                    ),
+                    ClassifierHead(
+                        head_id="pragmatic:counterfactual",
+                        candidate_text=(
+                            "Counterfactual hypothetical brainstorm read-only exploration "
+                            "that should not mutate files"
+                        ),
+                        category=HeadCategory.PRAGMATIC,
+                        metadata={"head_type": "pragmatic:counterfactual"},
+                    ),
+                    ClassifierHead(
+                        head_id="tier:floor",
+                        candidate_text="Simple mechanical leaf task safe for floor tier model",
+                        category=HeadCategory.PRAGMATIC,
+                        metadata={"head_type": "tier:floor"},
+                    ),
+                    ClassifierHead(
+                        head_id="tier:mid",
+                        candidate_text="Moderate multi-step task suitable for mid tier model",
+                        category=HeadCategory.PRAGMATIC,
+                        metadata={"head_type": "tier:mid"},
+                    ),
+                    ClassifierHead(
+                        head_id="tier:frontier",
+                        candidate_text=(
+                            "Complex high-risk architectural task requiring frontier tier model"
+                        ),
+                        category=HeadCategory.PRAGMATIC,
+                        metadata={"head_type": "tier:frontier"},
+                    ),
+                ]
+                seen_hids = {h.head_id for h in combined_heads}
+                for inv in active_invs:
+                    if inv.id not in seen_hids:
+                        seen_hids.add(inv.id)
+                        combined_heads.append(
+                            ClassifierHead(
+                                head_id=inv.id,
+                                candidate_text=inv.gist,
+                                category=HeadCategory.INVARIANT,
+                                metadata={"head_type": inv.id},
+                            )
+                        )
+                for idx_g, gist in enumerate(budgeted_gists):
+                    hid = f"cand:{idx_g}"
+                    if hid not in seen_hids:
+                        seen_hids.add(hid)
+                        combined_heads.append(
+                            ClassifierHead(
+                                head_id=hid,
+                                candidate_text=engine._format_candidate_text(gist),
+                                category=HeadCategory.CANDIDATE,
+                                metadata={"rel_path": gist.rel_path},
+                            )
+                        )
+                for idx_c, clause in enumerate(_extract_atomic_clauses(prompt_text)):
+                    hid = f"clause:{idx_c}"
+                    if hid not in seen_hids:
+                        seen_hids.add(hid)
+                        combined_heads.append(
+                            ClassifierHead(
+                                head_id=hid,
+                                candidate_text=clause,
+                                category=HeadCategory.CANDIDATE,
+                                metadata={"clause_index": idx_c},
+                            )
+                        )
+
+                diff_preview = "\n\n".join(
+                    f"FILE: {p}\n{c[:1200]}" for p, c in candidate_files.items()
+                )
+                shared_input = (
+                    f"USER TASK:\n{prompt_text}\n\nPROPOSED SOLUTION DIFF:\n{diff_preview}"
+                    if diff_preview
+                    else (prompt_text or "Execute benchmark task")
+                )
+                max_per_pass = max(1, live_driver.capabilities.max_candidates_per_pass)
+                if len(combined_heads) > max_per_pass:
+                    combined_heads = combined_heads[:max_per_pass]
+                t_api0 = time.perf_counter()
+                live_resp = await live_driver.classify(
+                    ClassifierRequest(query_text=shared_input, heads=combined_heads)
+                )
+                live_api_wall_ms = (time.perf_counter() - t_api0) * 1000.0
+                classifier_ms = float(live_resp.driver_latency_ms)
+                live_classifier_cost_usd = float(live_resp.estimated_cost_usd)
+                used_live_driver = True
+                prewarmed = _PrewarmedTaskDriver(live_resp, combined_heads)
+                engine = GateEngine(
+                    cartridge=cartridge,
+                    fts_store=fts_store,
+                    indexer=indexer,
+                    healing=healing,
+                    driver=prewarmed,
+                )
+
         # Gate 1: Turn-1 Intake & Context Sieve (plus Tier-1 air-gap detection)
         ev1 = GateEvent(
             gate=GateType.INTAKE,
@@ -1132,7 +1975,8 @@ async def _exercise_quadgate_pipeline(
             prompt_text=prompt_text or "Execute benchmark task",
         )
         v1 = await engine.evaluate_gate1_intake(ev1)
-        classifier_ms += v1.latency_ms
+        if not used_live_driver:
+            classifier_ms += v1.latency_ms
         tail_hints = list(v1.tail_hints)
 
         # Gate 3: Cold-boundary subagent tier governor on subagent chores
@@ -1150,7 +1994,8 @@ async def _exercise_quadgate_pipeline(
                 tool_args={"brief": prompt_text, "files": [str(t) for t in targets]},
             )
             v3 = await engine.evaluate_gate3_subagent(ev3)
-            classifier_ms += v3.latency_ms
+            if not used_live_driver:
+                classifier_ms += v3.latency_ms
 
         # 1-strike promotion + revert simulation when flawed_draft_files are provided
         flawed_raw = task.get("flawed_draft_files")
@@ -1159,7 +2004,9 @@ async def _exercise_quadgate_pipeline(
         )
         if bool(task.get("simulates_one_strike_promotion")) and flawed_files:
             if is_coding and is_git_worktree:
+                t_setup0 = time.perf_counter()
                 await _commit_worktree_files(sandbox_dir)
+                non_gate_setup_ms += (time.perf_counter() - t_setup0) * 1000.0
             _write_sandbox_files(sandbox_dir, flawed_files)
             flawed_paths = list(flawed_files.keys())
             flawed_diff = "\n".join(flawed_files.values())
@@ -1177,9 +2024,11 @@ async def _exercise_quadgate_pipeline(
                 metadata=gate4_meta,
             )
             v4_flawed = await engine.evaluate_gate4_stop(ev4_flawed)
-            classifier_ms += v4_flawed.latency_ms
+            if not used_live_driver:
+                classifier_ms += v4_flawed.latency_ms
 
             if v4_flawed.action != VerdictAction.PROMOTE:
+                t_oracle0 = time.perf_counter()
                 if is_coding:
                     ok_flawed, err_flawed = await verify_coding_ground_truth(
                         sandbox_dir,
@@ -1189,12 +2038,14 @@ async def _exercise_quadgate_pipeline(
                     )
                 else:
                     ok_flawed, err_flawed = verify_knowledge_ground_truth(sandbox_dir, task)
+                non_gate_setup_ms += (time.perf_counter() - t_oracle0) * 1000.0
                 if not ok_flawed:
                     v4_flawed = await healing.handle_gate4_failure(
                         ev4_flawed,
                         err_flawed or "Floor draft failed ground truth.",
                     )
-                    classifier_ms += v4_flawed.latency_ms
+                    if not used_live_driver:
+                        classifier_ms += v4_flawed.latency_ms
 
             promoted = v4_flawed.action == VerdictAction.PROMOTE
 
@@ -1224,7 +2075,8 @@ async def _exercise_quadgate_pipeline(
                 prompt_text=prompt_text,
             )
             v2 = await engine.evaluate_gate2_firewall(ev2)
-            classifier_ms += v2.latency_ms
+            if not used_live_driver:
+                classifier_ms += v2.latency_ms
 
         # Apply candidate files & run final Gate 4 stop audit
         _write_sandbox_files(sandbox_dir, candidate_files)
@@ -1244,14 +2096,52 @@ async def _exercise_quadgate_pipeline(
             metadata=gate4_meta,
         )
         v4_final = await engine.evaluate_gate4_stop(ev4_final)
-        classifier_ms += v4_final.latency_ms
+        if not used_live_driver:
+            classifier_ms += v4_final.latency_ms
+
+        task_gate_wall_ms = max(
+            0.0,
+            (time.perf_counter() - t_ipc_start) * 1000.0 - non_gate_setup_ms,
+        )
+        if spy_driver is not None:
+            spy_driver.begin_stress_phase()
+
+        if has_stress_checks and stress_out is not None:
+            s_results = await _run_stress_checks(
+                sandbox_dir,
+                task,
+                candidate_files,
+                is_coding=is_coding,
+                worker_pool=worker_pool,
+                pytest_sem=pytest_sem,
+                engine=engine,
+                indexer=indexer,
+                fts_store=fts_store,
+                healing=healing,
+                v1_verdict=v1,
+                fts_paths=fts_paths,
+                spy_driver=spy_driver,
+                session_id=session_id,
+                prompt_text=prompt_text,
+                gate4_meta=gate4_meta,
+            )
+            stress_out.extend(s_results)
+
+        if spy_driver is not None and spy_driver.cloud_calls > 0:
+            used_live_driver = True
+            live_classifier_cost_usd = spy_driver.total_cost_usd
+            live_api_wall_ms = spy_driver.total_wall_ms
+            classifier_ms = spy_driver.total_latency_ms
     finally:
         healing.close()
         fts_store.close()
 
-    total_gate_ms = (time.perf_counter() - t_ipc_start) * 1000.0
-    hook_ipc_ms = max(0.0, total_gate_ms - classifier_ms)
-    return promoted, hook_ipc_ms, classifier_ms, tail_hints
+    total_gate_ms = task_gate_wall_ms
+    if used_live_driver:
+        hook_ipc_ms = max(0.0, total_gate_ms - live_api_wall_ms)
+    else:
+        hook_ipc_ms = max(0.0, total_gate_ms - classifier_ms)
+    return promoted, hook_ipc_ms, classifier_ms, tail_hints, live_classifier_cost_usd
 
 
 def _aggregate_trace_metrics(
@@ -1694,6 +2584,22 @@ def _fmt_usd_signed(val: float) -> str:
     return f"`{sign}${abs(val):.4f}`"
 
 
+async def _gather_cancelling_on_error(
+    coros: list[Awaitable[TaskBenchmarkReceipt]],
+) -> list[TaskBenchmarkReceipt]:
+    """Gather tasks and cancel all unfinished siblings cleanly if any raises."""
+    tasks = [asyncio.ensure_future(c) for c in coros]
+    try:
+        return list(await asyncio.gather(*tasks))
+    except BaseException:
+        pending = [t for t in tasks if not t.done()]
+        for task in pending:
+            task.cancel()
+        if pending:
+            await asyncio.gather(*pending, return_exceptions=True)
+        raise
+
+
 class BenchmarkRunner:
     """Executes paired baseline vs. quadgate benchmarks in isolated sandboxes."""
 
@@ -1718,13 +2624,33 @@ class BenchmarkRunner:
             else:
                 self.suites_dir = _DEFAULT_SUITES_DIR
         self.live_runner = live_runner
+        self._turn2_cache_by_key: dict[tuple[str, str, str, int], tuple[int, int]] = {}
+        self._stress_diagnostics: list[dict[str, Any]] = []
 
-    def _load_tasks(self, suite: Literal["coding", "knowledge", "all"]) -> list[dict[str, Any]]:
+    def _load_tasks(
+        self,
+        suite: Literal[
+            "coding",
+            "knowledge",
+            "all",
+            "stress_long_context",
+            "stress_tool_cache_routing",
+            "stress_adversarial_resilience",
+            "stress_all",
+            "everything",
+        ],
+    ) -> list[dict[str, Any]]:
         selected_files: list[Path] = []
-        if suite in ("coding", "all"):
+        if suite in ("coding", "all", "everything"):
             selected_files.append(self.suites_dir / "coding_tasks.jsonl")
-        if suite in ("knowledge", "all"):
+        if suite in ("knowledge", "all", "everything"):
             selected_files.append(self.suites_dir / "knowledge_tasks.jsonl")
+        if suite in ("stress_long_context", "stress_all", "everything"):
+            selected_files.append(self.suites_dir / "stress_long_context.jsonl")
+        if suite in ("stress_tool_cache_routing", "stress_all", "everything"):
+            selected_files.append(self.suites_dir / "stress_tool_cache_routing.jsonl")
+        if suite in ("stress_adversarial_resilience", "stress_all", "everything"):
+            selected_files.append(self.suites_dir / "stress_adversarial_resilience.jsonl")
 
         tasks: list[dict[str, Any]] = []
         for path in selected_files:
@@ -1819,14 +2745,27 @@ class BenchmarkRunner:
         git_mgr: _GitWorktreeManager | None,
         worker_pool: _PytestWorkerPool | None,
         pytest_sem: asyncio.Semaphore,
+        live_driver: ClassifierDriver | None = None,
     ) -> TaskBenchmarkReceipt:
         task_id = str(task["task_id"])
-        suite_name: Literal["coding", "knowledge"] = (
-            "coding" if str(task.get("suite")) == "coding" else "knowledge"
-        )
+        raw_suite = str(task.get("suite") or "knowledge")
+        valid_suites = {
+            "coding",
+            "knowledge",
+            "stress_long_context",
+            "stress_tool_cache_routing",
+            "stress_adversarial_resilience",
+        }
+        suite_name: Literal[
+            "coding",
+            "knowledge",
+            "stress_long_context",
+            "stress_tool_cache_routing",
+            "stress_adversarial_resilience",
+        ] = raw_suite if raw_suite in valid_suites else "knowledge"  # type: ignore[assignment]
         category = str(task.get("category") or "")
         task_sha256 = compute_task_sha256(task)
-        is_coding = suite_name == "coding"
+        is_coding = _is_coding_task(task)
 
         if is_coding and git_mgr is not None:
             sandbox_ctx = git_mgr.sandbox(f"{task_id}_{mode}_r{run_index}")
@@ -1841,8 +2780,10 @@ class BenchmarkRunner:
             promoted = False
             hook_ipc_ms = 0.0
             classifier_ms = 0.0
+            live_classifier_cost_usd = 0.0
+            task_stress_results: list[dict[str, Any]] = []
 
-            if dry_replay:
+            if dry_replay or (live_driver is not None and self.live_runner is None):
                 solution_map = task.get("solution_files") or {}
                 baseline_map = task.get("baseline_solution_files")
                 if mode == "baseline" and isinstance(baseline_map, Mapping) and baseline_map:
@@ -1876,7 +2817,13 @@ class BenchmarkRunner:
                     candidate_files = dict(live_res.get("candidate_files") or {})
 
             if mode == "quadgate":
-                promoted, hook_ipc_ms, classifier_ms, _ = await _exercise_quadgate_pipeline(
+                (
+                    promoted,
+                    hook_ipc_ms,
+                    classifier_ms,
+                    _,
+                    live_classifier_cost_usd,
+                ) = await _exercise_quadgate_pipeline(
                     sandbox_dir,
                     task,
                     candidate_files,
@@ -1884,19 +2831,70 @@ class BenchmarkRunner:
                     is_git_worktree=is_git_wt,
                     worker_pool=worker_pool,
                     pytest_sem=pytest_sem,
+                    live_driver=live_driver,
+                    stress_out=task_stress_results,
                 )
+                if live_driver is not None:
+                    trace_dict["hook_ipc_ms"] = hook_ipc_ms
+                    trace_dict["classifier_latency_ms"] = classifier_ms
+                    trace_dict["classifier_cost_usd"] = live_classifier_cost_usd
+                    trace_dict["wall_clock_ms"] = 0.0
             else:
                 _write_sandbox_files(sandbox_dir, candidate_files)
 
             if is_coding:
-                passed, _ = await verify_coding_ground_truth(
+                functional_passed, functional_err = await verify_coding_ground_truth(
                     sandbox_dir,
                     task,
                     worker_pool=worker_pool,
                     semaphore=pytest_sem,
                 )
             else:
-                passed, _ = verify_knowledge_ground_truth(sandbox_dir, task)
+                functional_passed, functional_err = verify_knowledge_ground_truth(sandbox_dir, task)
+
+            if mode == "baseline":
+                passed = (
+                    False
+                    if bool(task.get("baseline_security_violation"))
+                    else bool(functional_passed)
+                )
+            else:
+                kernel_ok = all(bool(item.get("passed")) for item in task_stress_results)
+                passed = bool(functional_passed and kernel_ok)
+                if task_stress_results or (not functional_passed):
+                    self._stress_diagnostics.append(
+                        {
+                            "task_id": task_id,
+                            "suite": suite_name,
+                            "category": category,
+                            "run_index": run_index,
+                            "functional_passed": bool(functional_passed),
+                            "functional_error": functional_err,
+                            "kernel_passed": bool(kernel_ok),
+                            "overall_passed": bool(passed),
+                            "checks": task_stress_results,
+                        }
+                    )
+
+        t2_cr = 0
+        t2_tot = 0
+        for turn_idx_0, turn in enumerate(trace_dict.get("turns") or []):
+            if not isinstance(turn, Mapping):
+                continue
+            t_num = int(turn.get("turn_index", turn_idx_0 + 1))
+            if t_num >= 2:
+                u, cr, cw, _ = extract_provider_usage(turn.get("usage") or {})
+                t2_cr += cr
+                t2_tot += u + cr + cw
+        for turn in trace_dict.get("retry_turns") or []:
+            if not isinstance(turn, Mapping):
+                continue
+            t_num = int(turn.get("turn_index", 1))
+            if t_num >= 2:
+                u, cr, cw, _ = extract_provider_usage(turn.get("usage") or {})
+                t2_cr += cr
+                t2_tot += u + cr + cw
+        self._turn2_cache_by_key[(task_id, suite_name, mode, run_index)] = (t2_cr, t2_tot)
 
         metrics = _aggregate_trace_metrics(
             trace_dict,
@@ -1936,7 +2934,16 @@ class BenchmarkRunner:
 
     async def run_suite(
         self,
-        suite: Literal["coding", "knowledge", "all"] = "all",
+        suite: Literal[
+            "coding",
+            "knowledge",
+            "all",
+            "stress_long_context",
+            "stress_tool_cache_routing",
+            "stress_adversarial_resilience",
+            "stress_all",
+            "everything",
+        ] = "all",
         runs: int = 1,
         dry_replay: bool = True,
         output_path: Path | None = None,
@@ -1944,99 +2951,211 @@ class BenchmarkRunner:
         """Run the requested benchmark suite and return tamper-evident receipts."""
         if runs < 1:
             raise ValueError(f"runs must be >= 1, got {runs}")
-        if suite not in ("coding", "knowledge", "all"):
+        valid_suite_args = (
+            "coding",
+            "knowledge",
+            "all",
+            "stress_long_context",
+            "stress_tool_cache_routing",
+            "stress_adversarial_resilience",
+            "stress_all",
+            "everything",
+        )
+        if suite not in valid_suite_args:
             raise ValueError(f"Unsupported suite: {suite!r}")
 
-        if not dry_replay and self.live_runner is None:
-            has_key = any(
-                bool(os.environ.get(k, "").strip())
-                for k in ("ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GEMINI_API_KEY")
+        anth_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
+        oai_key = os.environ.get("OPENAI_API_KEY", "").strip()
+        gem_key = os.environ.get("GEMINI_API_KEY", "").strip()
+        d1_key = os.environ.get("DECISION1_API_KEY", "").strip()
+        gem_is_decisions_only = gem_key.startswith("AQ.")
+        has_gen_key = bool(anth_key or oai_key or (gem_key and not gem_is_decisions_only))
+        effective_d1_key = d1_key or (gem_key if gem_is_decisions_only else "")
+        has_d1_key = bool(effective_d1_key)
+
+        if not dry_replay and self.live_runner is None and not has_gen_key and not has_d1_key:
+            raise RuntimeError(
+                "Live benchmark mode (--live) requires ANTHROPIC_API_KEY, OPENAI_API_KEY, "
+                "GEMINI_API_KEY, DECISION1_API_KEY, or an injected live_runner."
             )
-            if not has_key:
-                raise RuntimeError(
-                    "Live benchmark mode (--live) requires ANTHROPIC_API_KEY, OPENAI_API_KEY, "
-                    "GEMINI_API_KEY, or an injected live_runner."
-                )
 
-        tasks = self._load_tasks(suite)
-        coding_tasks = [t for t in tasks if t.get("suite") == "coding"]
-        knowledge_tasks = [t for t in tasks if t.get("suite") == "knowledge"]
-        pytest_sem = asyncio.Semaphore(4)
-        receipts: list[TaskBenchmarkReceipt] = []
+        live_driver: ClassifierDriver | None = None
+        if not dry_replay and self.live_runner is None and has_d1_key and not (anth_key or oai_key):
+            live_driver = build_driver_from_config("decision1")
+            if not getattr(live_driver, "api_key", None):
+                setattr(live_driver, "api_key", effective_d1_key)
+            if hasattr(live_driver, "retry_429_max_wait_s"):
+                setattr(live_driver, "retry_429_max_wait_s", 65.0)
 
-        modes: tuple[Literal["baseline", "quadgate"], ...] = ("baseline", "quadgate")
+        self._turn2_cache_by_key.clear()
+        self._stress_diagnostics.clear()
+        try:
+            tasks = self._load_tasks(suite)
+            coding_tasks = [t for t in tasks if _is_coding_task(t)]
+            knowledge_tasks = [t for t in tasks if not _is_coding_task(t)]
+            pytest_sem = asyncio.Semaphore(4)
+            receipts: list[TaskBenchmarkReceipt] = []
 
-        async def _run_coding_batch() -> list[TaskBenchmarkReceipt]:
-            if not coding_tasks:
-                return []
-            worker_count = min(4, max(1, len(coding_tasks) * runs))
-            git_mgr = _GitWorktreeManager(max_git_concurrency=4)
-            worker_pool = _PytestWorkerPool(size=worker_count)
-            async with AsyncExitStack() as stack:
-                await asyncio.gather(
-                    stack.enter_async_context(git_mgr),
-                    stack.enter_async_context(worker_pool),
-                )
-                coding_coros: list[Awaitable[TaskBenchmarkReceipt]] = []
-                for run_idx in range(1, runs + 1):
-                    for task in coding_tasks:
-                        for mode_lit in modes:
-                            coding_coros.append(
-                                self._execute_single_task_mode(
-                                    task,
-                                    mode_lit,
-                                    run_idx,
-                                    dry_replay=dry_replay,
-                                    git_mgr=git_mgr,
-                                    worker_pool=worker_pool,
-                                    pytest_sem=pytest_sem,
-                                )
-                            )
-                return list(await asyncio.gather(*coding_coros))
+            modes: tuple[Literal["baseline", "quadgate"], ...] = ("baseline", "quadgate")
 
-        async def _run_knowledge_batch() -> list[TaskBenchmarkReceipt]:
-            if not knowledge_tasks:
-                return []
-            kn_sem = asyncio.Semaphore(8)
+            async def _run_coding_batch() -> list[TaskBenchmarkReceipt]:
+                if not coding_tasks:
+                    return []
+                worker_count = min(4, max(1, len(coding_tasks) * runs))
+                git_mgr = _GitWorktreeManager(max_git_concurrency=4)
+                worker_pool = _PytestWorkerPool(size=worker_count)
+                coding_sem = asyncio.Semaphore(8)
 
-            async def _bounded_knowledge(
-                t: dict[str, Any],
-                m: Literal["baseline", "quadgate"],
-                r_idx: int,
-            ) -> TaskBenchmarkReceipt:
-                async with kn_sem:
-                    return await self._execute_single_task_mode(
-                        t,
-                        m,
-                        r_idx,
-                        dry_replay=dry_replay,
-                        git_mgr=None,
-                        worker_pool=None,
-                        pytest_sem=pytest_sem,
+                async def _bounded_coding(
+                    t: dict[str, Any],
+                    m: Literal["baseline", "quadgate"],
+                    r_idx: int,
+                ) -> TaskBenchmarkReceipt:
+                    async with coding_sem:
+                        return await self._execute_single_task_mode(
+                            t,
+                            m,
+                            r_idx,
+                            dry_replay=dry_replay,
+                            git_mgr=git_mgr,
+                            worker_pool=worker_pool,
+                            pytest_sem=pytest_sem,
+                            live_driver=live_driver,
+                        )
+
+                async with AsyncExitStack() as stack:
+                    await asyncio.gather(
+                        stack.enter_async_context(git_mgr),
+                        stack.enter_async_context(worker_pool),
                     )
+                    coding_coros: list[Awaitable[TaskBenchmarkReceipt]] = []
+                    for run_idx in range(1, runs + 1):
+                        for task in coding_tasks:
+                            for mode_lit in modes:
+                                coding_coros.append(
+                                    _bounded_coding(task, mode_lit, run_idx)
+                                )
+                    return await _gather_cancelling_on_error(coding_coros)
 
-            kn_coros: list[Awaitable[TaskBenchmarkReceipt]] = []
-            for run_idx in range(1, runs + 1):
-                for task in knowledge_tasks:
-                    for mode_lit_k in modes:
-                        kn_coros.append(_bounded_knowledge(task, mode_lit_k, run_idx))
-            return list(await asyncio.gather(*kn_coros))
+            async def _run_knowledge_batch() -> list[TaskBenchmarkReceipt]:
+                if not knowledge_tasks:
+                    return []
+                kn_sem = asyncio.Semaphore(8)
 
-        receipts.extend(await _run_coding_batch())
-        receipts.extend(await _run_knowledge_batch())
+                async def _bounded_knowledge(
+                    t: dict[str, Any],
+                    m: Literal["baseline", "quadgate"],
+                    r_idx: int,
+                ) -> TaskBenchmarkReceipt:
+                    async with kn_sem:
+                        return await self._execute_single_task_mode(
+                            t,
+                            m,
+                            r_idx,
+                            dry_replay=dry_replay,
+                            git_mgr=None,
+                            worker_pool=None,
+                            pytest_sem=pytest_sem,
+                            live_driver=live_driver,
+                        )
+
+                kn_coros: list[Awaitable[TaskBenchmarkReceipt]] = []
+                for run_idx in range(1, runs + 1):
+                    for task in knowledge_tasks:
+                        for mode_lit_k in modes:
+                            kn_coros.append(_bounded_knowledge(task, mode_lit_k, run_idx))
+                return await _gather_cancelling_on_error(kn_coros)
+
+            receipts.extend(await _run_coding_batch())
+            receipts.extend(await _run_knowledge_batch())
+        finally:
+            if live_driver is not None:
+                await live_driver.close()
 
         # Preserve deterministic ordering by (run_index, suite, task_id, mode)
         receipts.sort(key=lambda r: (r.run_index, r.suite, r.task_id, r.mode))
 
         self.reports_dir.mkdir(parents=True, exist_ok=True)
         stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-        jsonl_path = self.reports_dir / f"run_{stamp}.jsonl"
+        safe_suite = re.sub(r"[^A-Za-z0-9_.-]+", "_", str(suite))
+        pid = os.getpid()
+        jsonl_path = self.reports_dir / f"run_{stamp}_{safe_suite}_{pid}.jsonl"
         jsonl_lines = "".join(r.model_dump_json() + "\n" for r in receipts)
         jsonl_path.write_text(jsonl_lines, encoding="utf-8")
+
+        if self._stress_diagnostics:
+            self._stress_diagnostics.sort(
+                key=lambda d: (int(d["run_index"]), str(d["suite"]), str(d["task_id"]))
+            )
+            diag_path = self.reports_dir / f"stress_diag_{stamp}_{safe_suite}_{pid}.json"
+            diag_path.write_text(json.dumps(self._stress_diagnostics, indent=2), encoding="utf-8")
 
         report_path = output_path if output_path is not None else self.reports_dir / "LATEST_PROOF.md"
         self.generate_markdown_report(receipts, report_path)
         return receipts
+
+    def _compute_turn2_cache_shares(
+        self,
+        receipts: list[TaskBenchmarkReceipt],
+        base_stats: Mapping[str, float],
+        qg_stats: Mapping[str, float],
+    ) -> tuple[float, float]:
+        """Compute Turn 2..N cache_read_input_tokens share (%) for baseline and quadgate."""
+        totals: dict[str, list[int]] = {"baseline": [0, 0], "quadgate": [0, 0]}
+        fallback_tasks: dict[str, dict[str, Any]] | None = None
+
+        for rec in receipts:
+            key = (rec.task_id, str(rec.suite), str(rec.mode), rec.run_index)
+            pair = self._turn2_cache_by_key.get(key)
+            if pair is None:
+                if fallback_tasks is None:
+                    fallback_tasks = {}
+                    for fname in (
+                        "coding_tasks.jsonl",
+                        "knowledge_tasks.jsonl",
+                        "stress_long_context.jsonl",
+                        "stress_tool_cache_routing.jsonl",
+                        "stress_adversarial_resilience.jsonl",
+                    ):
+                        fpath = self.suites_dir / fname
+                        if fpath.is_file():
+                            for ln in fpath.read_text(encoding="utf-8").splitlines():
+                                s = ln.strip()
+                                if s:
+                                    obj = json.loads(s)
+                                    if isinstance(obj, dict) and "task_id" in obj:
+                                        fallback_tasks[str(obj["task_id"])] = obj
+                task_obj = fallback_tasks.get(rec.task_id)
+                cr_sum, tot_sum = 0, 0
+                if task_obj is not None:
+                    rt = (task_obj.get("replay_trace") or {}).get(rec.mode) or {}
+                    for idx_0, turn in enumerate(rt.get("turns") or []):
+                        if isinstance(turn, Mapping) and int(turn.get("turn_index", idx_0 + 1)) >= 2:
+                            u, cr, cw, _ = extract_provider_usage(turn.get("usage") or {})
+                            cr_sum += cr
+                            tot_sum += u + cr + cw
+                    for turn in rt.get("retry_turns") or []:
+                        if isinstance(turn, Mapping) and int(turn.get("turn_index", 1)) >= 2:
+                            u, cr, cw, _ = extract_provider_usage(turn.get("usage") or {})
+                            cr_sum += cr
+                            tot_sum += u + cr + cw
+                pair = (cr_sum, tot_sum)
+            totals[rec.mode][0] += pair[0]
+            totals[rec.mode][1] += pair[1]
+
+        base_cr, base_tot = totals["baseline"]
+        qg_cr, qg_tot = totals["quadgate"]
+        base_pct = (
+            (base_cr / float(base_tot) * 100.0)
+            if base_tot > 0
+            else float(base_stats.get("warm_cache_hit_pct", 0.0))
+        )
+        qg_pct = (
+            (qg_cr / float(qg_tot) * 100.0)
+            if qg_tot > 0
+            else float(qg_stats.get("warm_cache_hit_pct", 0.0))
+        )
+        return base_pct, qg_pct
 
     def generate_markdown_report(
         self,
@@ -2071,6 +3190,28 @@ class BenchmarkRunner:
         tok_ci = _compute_paired_ci(token_diffs, base_mean_in)
         cost_ci = _compute_paired_ci(cost_diffs, base_mean_cost)
         lat_ci = _compute_paired_ci(lat_diffs, base_mean_ms)
+
+        base_t2_pct, qg_t2_pct = self._compute_turn2_cache_shares(
+            receipts, base_stats, qg_stats
+        )
+        p50_speedup = (
+            (base_stats["p50_ms"] / qg_stats["p50_ms"])
+            if qg_stats["p50_ms"] > 0.0
+            else 0.0
+        )
+        cost_compression_pct = (
+            (
+                (base_stats["total_cost_usd"] - qg_stats["total_cost_usd"])
+                / base_stats["total_cost_usd"]
+                * 100.0
+            )
+            if base_stats["total_cost_usd"] > 0.0
+            else 0.0
+        )
+        crit_quality_ok = qg_stats["pass_rate_pct"] >= base_stats["pass_rate_pct"]
+        crit_cache_ok = qg_t2_pct >= 75.0
+        crit_cost_ok = cost_compression_pct >= 60.0
+        crit_speed_ok = p50_speedup >= 1.8
 
         generated_at = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%SZ")
         lines: list[str] = [
@@ -2165,11 +3306,45 @@ class BenchmarkRunner:
                 f"{lat_ci['pct_mean']:.1f}% ([{lat_ci['pct_low']:.1f}%, {lat_ci['pct_high']:.1f}%]) |"
             ),
             "",
+            "## Release Readiness Gate (Four Release Criteria Verification)",
+            "",
+            "| Criterion | Target | Baseline | QuadGate | Verdict |",
+            "| :--- | :--- | ---: | ---: | :---: |",
+            (
+                f"| Quality Parity or Gain (`Pass@1`) | `>= Baseline` (`+10%..+25%` target) | "
+                f"{base_stats['pass_rate_pct']:.1f}% | {qg_stats['pass_rate_pct']:.1f}% "
+                f"({qg_stats['pass_rate_pct'] - base_stats['pass_rate_pct']:+.1f} pp) | "
+                f"{'PASS' if crit_quality_ok else 'FAIL'} |"
+            ),
+            (
+                f"| Cache Integrity (Turns `2..N`) | `>= 75.0%` `cache_read` share | "
+                f"{base_t2_pct:.1f}% | {qg_t2_pct:.1f}% ({qg_t2_pct - base_t2_pct:+.1f} pp) | "
+                f"{'PASS' if crit_cache_ok else 'FAIL'} |"
+            ),
+            (
+                f"| Net Cost Compression | `>= 60.0%` total spend drop | "
+                f"{_fmt_usd(base_stats['total_cost_usd'])} | "
+                f"{_fmt_usd(qg_stats['total_cost_usd'])} (-{cost_compression_pct:.1f}%) | "
+                f"{'PASS' if crit_cost_ok else 'FAIL'} |"
+            ),
+            (
+                f"| Wall-Clock Acceleration (`p50`) | `>= 1.8x` median speedup | "
+                f"{base_stats['p50_ms']:.1f} ms | "
+                f"{qg_stats['p50_ms']:.1f} ms ({p50_speedup:.2f}x) | "
+                f"{'PASS' if crit_speed_ok else 'FAIL'} |"
+            ),
+            "",
             "## Per-Suite Breakdown",
             "",
         ]
 
-        for suite_name in ("coding", "knowledge"):
+        for suite_name in (
+            "coding",
+            "knowledge",
+            "stress_long_context",
+            "stress_tool_cache_routing",
+            "stress_adversarial_resilience",
+        ):
             s_receipts = [r for r in receipts if r.suite == suite_name]
             if not s_receipts:
                 continue
@@ -2219,6 +3394,66 @@ class BenchmarkRunner:
                     "",
                 ]
             )
+
+        if self._stress_diagnostics:
+            check_totals: dict[str, list[int]] = {}
+            failures: list[tuple[str, str, int, str, str]] = []
+            for d in self._stress_diagnostics:
+                if not d.get("functional_passed"):
+                    failures.append(
+                        (
+                            str(d["suite"]),
+                            str(d["task_id"]),
+                            int(d["run_index"]),
+                            "functional_oracle",
+                            str(d.get("functional_error") or "Failed ground truth"),
+                        )
+                    )
+                for chk in d.get("checks") or []:
+                    cname = str(chk.get("check") or "unknown")
+                    bucket = cname.split(":", 1)[0]
+                    rec = check_totals.setdefault(bucket, [0, 0])
+                    rec[1] += 1
+                    if chk.get("passed"):
+                        rec[0] += 1
+                    else:
+                        failures.append(
+                            (
+                                str(d["suite"]),
+                                str(d["task_id"]),
+                                int(d["run_index"]),
+                                cname,
+                                str(chk.get("detail") or ""),
+                            )
+                        )
+            lines.extend(
+                [
+                    "## Stress Kernel & Security Diagnostics",
+                    "",
+                    "| Kernel Check Category | Passed | Total | Pass Rate (%) |",
+                    "| :--- | ---: | ---: | ---: |",
+                ]
+            )
+            for b_name in sorted(check_totals.keys()):
+                ok_c, tot_c = check_totals[b_name]
+                pct_c = (ok_c / float(tot_c) * 100.0) if tot_c else 0.0
+                lines.append(f"| `{b_name}` | {ok_c} | {tot_c} | {pct_c:.1f}% |")
+            lines.append("")
+            if failures:
+                lines.extend(
+                    [
+                        f"### Failed Stress Checks ({len(failures)} total)",
+                        "",
+                        "| Suite | Task | Run | Check | Detail |",
+                        "| :--- | :--- | ---: | :--- | :--- |",
+                    ]
+                )
+                for f_suite, f_tid, f_run, f_chk, f_det in failures[:60]:
+                    safe_det = f_det.replace("|", "\\|").replace("\n", " ")[:180]
+                    lines.append(
+                        f"| `{f_suite}` | `{f_tid}` | {f_run} | `{f_chk}` | {safe_det} |"
+                    )
+                lines.append("")
 
         lines.extend(
             [

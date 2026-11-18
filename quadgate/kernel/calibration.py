@@ -284,6 +284,15 @@ class CalibrationEngine:
             )
             best_t = min(_TEMP_MAX, max(_TEMP_MIN, best_t))
 
+        if not scores_are_logits and len(cleaned_labels) < 100:
+            raw_ece = self.compute_ece(
+                [min(1.0, max(0.0, score)) for score in cleaned_scores],
+                cleaned_labels,
+                num_bins=10,
+            )
+            if raw_ece <= min(0.04, self.max_allowed_ece):
+                best_t = 1.0
+
         profile = CalibrationProfile(
             driver_id=driver_id,
             method=CalibrationMethod.TEMPERATURE_SCALING,

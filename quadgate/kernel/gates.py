@@ -38,10 +38,15 @@ from quadgate.contracts import (
     ViolationReceipt,
 )
 from quadgate.drivers.base import ClassifierDriver
-from quadgate.drivers.onnx_local import ZeroDepDriver
+from quadgate.drivers.onnx_local import LocalOnnxDriver, ZeroDepDriver
 from quadgate.index.ast_gists import AstGistIndexer
 from quadgate.index.cochange import CoChangeGraph
-from quadgate.index.sqlite_fts import SqliteFtsStore
+from quadgate.index.sqlite_fts import (
+    SqliteFtsStore,
+    is_sensitive_content,
+    is_sensitive_file,
+    is_sensitive_path,
+)
 from quadgate.kernel.calibration import CalibrationEngine
 from quadgate.shim import check_stage2a_deterministic_security
 
@@ -131,6 +136,7 @@ _CLAUSE_CONJUNCTION_SPLIT_RE = re.compile(
 _STOPWORDS = frozenset(
     {
         "a",
+        "all",
         "an",
         "and",
         "are",
@@ -169,24 +175,82 @@ _CLAUSE_FILLER_VERBS = frozenset(
         "add",
         "also",
         "check",
+        "cover",
+        "covering",
         "create",
         "delete",
+        "document",
+        "draft",
         "edit",
         "ensure",
+        "ensuring",
         "fix",
         "implement",
         "include",
         "make",
         "modify",
         "patch",
+        "produce",
         "remove",
         "rewrite",
         "run",
+        "specify",
+        "state",
+        "synthesize",
+        "synthesizing",
         "update",
+        "validate",
         "verify",
         "write",
     }
 )
+_CLAUSE_INTRO_META_TOKENS = frozenset(
+    {
+        "clause",
+        "clauses",
+        "covering",
+        "draft",
+        "ensure",
+        "ensuring",
+        "following",
+        "include",
+        "legal",
+        "notes",
+        "period",
+        "synthesize",
+        "synthesizing",
+        "vault",
+    }
+)
+_KNOWN_CLAUSE_FILE_EXTS = frozenset(
+    {
+        "py",
+        "pyi",
+        "ts",
+        "tsx",
+        "js",
+        "jsx",
+        "rs",
+        "go",
+        "md",
+        "markdown",
+        "mdx",
+        "txt",
+        "rst",
+        "csv",
+        "tsv",
+        "json",
+        "yaml",
+        "yml",
+        "toml",
+        "sql",
+        "sh",
+        "pem",
+        "key",
+        "env",
+    }
+)
+_COMMA_NUMBER_RE = re.compile(r"\b\d{1,3}(?:,\d{3})+\b")
 _HIGH_COMPLEXITY_RE = re.compile(
     r"\b(?:architect(?:ure)?|distributed|consensus|concurrency|race\s+condition|"
     r"deadlock|cryptograph\w*|security\s+vulnerabilit\w*|zero[-\s]?downtime|"
@@ -585,14 +649,30 @@ def _extract_enclosing_context(event: GateEvent, target_paths: list[str]) -> str
 def _tokenize_clause_words(text: str) -> tuple[list[str], set[str]]:
     tokens: list[str] = []
     stems: set[str] = set()
+    if "[[" in text:
+        for w_match in _WIKILINK_RE.finditer(text):
+            raw_wiki = w_match.group(1).strip().replace("\\", "/").lstrip("./").lower()
+            w_stem = raw_wiki.rsplit("/", 1)[-1].rsplit(".", 1)[0]
+            if w_stem and not w_stem.startswith("."):
+                stems.add(w_stem)
+
     for match in _PATH_MENTION_RE.finditer(text):
         raw_path = match.group(0).replace("\\", "/").lower()
         base = raw_path.rsplit("/", 1)[-1]
-        stem = base.rsplit(".", 1)[0]
-        if stem and not stem.startswith("."):
+        if "." not in base:
+            continue
+        stem, ext = base.rsplit(".", 1)
+        if not stem or stem.startswith(".") or stem.isdigit():
+            continue
+        if "/" in raw_path or ext in _KNOWN_CLAUSE_FILE_EXTS:
             stems.add(stem)
 
-    for chunk in _TOKEN_SPLIT_RE.findall(text):
+    norm_text = (
+        _COMMA_NUMBER_RE.sub(lambda m: m.group(0).replace(",", ""), text)
+        if "," in text
+        else text
+    )
+    for chunk in _TOKEN_SPLIT_RE.findall(norm_text):
         for part in chunk.split("_"):
             if not part:
                 continue
@@ -654,26 +734,56 @@ def _score_zero_dep_clause_coverage(clause: str, evidence_text: str) -> float:
     e_tokens, e_stems = _tokenize_clause_words(evidence_text)
     e_token_set = set(e_tokens)
     if e_token_set & {"def", "fn", "func"}:
-        e_token_set.update({"function", "method"})
+        e_token_set.update({"function", "method", "helper"})
     if e_token_set & {"class", "struct"}:
         e_token_set.update({"type", "class"})
     if e_token_set & {"raise", "except", "valueerror", "typeerror", "runtimeerror"}:
-        e_token_set.update({"error", "exception"})
+        e_token_set.update({"error", "exception", "reject", "forbid"})
+    if "redact" in e_token_set or "redacted" in e_token_set:
+        e_token_set.update({"redact", "redacted", "redacting", "redaction"})
     if e_stems:
         e_token_set.update({"file", "module"})
+    e_prefixes5 = {et[:5] for et in e_token_set if len(et) >= 5}
 
     key_tokens = (
         c_tokens[1:]
         if len(c_tokens) > 1 and c_tokens[0] in _CLAUSE_FILLER_VERBS
-        else c_tokens
+        else list(c_tokens)
     )
+    is_colon_header = clause.rstrip().endswith(":")
+    if is_colon_header:
+        filtered = [
+            t
+            for idx, t in enumerate(key_tokens)
+            if t not in _CLAUSE_INTRO_META_TOKENS
+            and not (
+                t.isdigit()
+                and any(
+                    nxt in {"clause", "clauses"}
+                    for nxt in key_tokens[idx + 1:idx + 3]
+                )
+            )
+        ]
+        if filtered:
+            key_tokens = filtered
+    else:
+        filtered_non_meta = [t for t in key_tokens if t != "period"]
+        if filtered_non_meta:
+            key_tokens = filtered_non_meta
+
     if not key_tokens:
         return 1.0
 
     hits = 0
     for tok in key_tokens:
-        if tok in e_token_set or any(
-            (tok in et or et in tok) for et in e_token_set if len(tok) >= 4 and len(et) >= 4
+        if (
+            tok in e_token_set
+            or (len(tok) >= 5 and tok[:5] in e_prefixes5)
+            or any(
+                (tok in et or et in tok)
+                for et in e_token_set
+                if len(tok) >= 4 and len(et) >= 4
+            )
         ):
             hits += 1
     tok_recall = hits / len(key_tokens)
@@ -836,6 +946,71 @@ class GateEngine:
             for glob_pat in cartridge.context_unit.private_tier1_globs
         ]
         self._gate2_strikes: dict[tuple[str, str], int] = {}
+        self._airgapped_sessions: set[str] = set()
+        self._ws_has_private_cache: dict[str, tuple[float, bool]] = {}
+
+    def _workspace_has_private_files(self, workspace_root: str) -> bool:
+        if not workspace_root:
+            return False
+        now = time.monotonic()
+        ws_path = Path(workspace_root)
+        try:
+            root_mtime_ns = ws_path.stat().st_mtime_ns if ws_path.is_dir() else 0
+        except OSError:
+            return False
+        if not root_mtime_ns:
+            return False
+        cached = self._ws_has_private_cache.get(workspace_root)
+        if cached is not None:
+            ts, prev_val = cached
+            if prev_val or (now - ts) < 2.0:
+                return prev_val
+
+        if self.indexer is not None and getattr(self.indexer, "_gists_by_path", None):
+            try:
+                idx_real = os.path.normcase(os.path.realpath(str(self.indexer.workspace_root)))
+                ws_real = os.path.normcase(os.path.realpath(str(ws_path)))
+                if idx_real == ws_real and hasattr(self.indexer, "has_private_files"):
+                    if self.indexer.has_private_files():
+                        self._ws_has_private_cache[workspace_root] = (now, True)
+                        return True
+            except OSError:
+                pass
+
+        if self.fts_store is not None and hasattr(self.fts_store, "has_private_gists"):
+            ws_hash = (
+                self.indexer.workspace_hash
+                if self.indexer is not None
+                else _compute_workspace_hash(workspace_root)
+            )
+            if self.fts_store.has_private_gists(ws_hash):
+                self._ws_has_private_cache[workspace_root] = (now, True)
+                return True
+
+        is_self_repo = (ws_path / "quadgate" / "kernel").is_dir()
+        checker = self.fts_store if self.fts_store is not None else self._airgap_checker
+        for root_str, dirnames, filenames in os.walk(ws_path):
+            dirnames[:] = [
+                d
+                for d in dirnames
+                if d not in _EXCLUDED_WALK_DIRS
+                and not d.startswith(".")
+                and not (is_self_repo and d in {"benchmarks", "tests"})
+            ]
+            rel_dir = Path(root_str).relative_to(ws_path)
+            rel_dir_posix = "" if str(rel_dir) == "." else rel_dir.as_posix()
+            for fname in filenames:
+                rel = f"{rel_dir_posix}/{fname}" if rel_dir_posix else fname
+                fpath = Path(root_str) / fname
+                if (
+                    self._matches_private_glob(rel, workspace_root)
+                    or not checker.check_air_gap(rel, workspace_root)
+                    or is_sensitive_file(fpath, workspace_root)
+                ):
+                    self._ws_has_private_cache[workspace_root] = (now, True)
+                    return True
+        self._ws_has_private_cache[workspace_root] = (now, False)
+        return False
 
     def _matches_private_glob(self, path_str: str, workspace_root: str) -> bool:
         norm = _normalize_rel_posix(path_str, workspace_root)
@@ -850,6 +1025,14 @@ class GateEngine:
                 return True
         return False
 
+    def _is_private_hint_path(self, path_str: str, workspace_root: str) -> bool:
+        norm = _normalize_rel_posix(path_str, workspace_root)
+        if not norm or _is_safe_dotenv(norm):
+            return False
+        if _is_forbidden_dotenv(norm) or self._matches_private_glob(norm, workspace_root):
+            return True
+        return is_sensitive_path(norm)
+
     def _check_air_gap(
         self,
         *,
@@ -857,29 +1040,56 @@ class GateEngine:
         workspace_root: str,
         paths: list[str] | None = None,
         gists: list[IndexedGist] | None = None,
+        session_id: str | None = None,
     ) -> bool:
-        checker = self.fts_store if self.fts_store is not None else self._airgap_checker
-        if not checker.check_air_gap(text, workspace_root):
+        if session_id and session_id in self._airgapped_sessions:
             return False
 
+        def _deny() -> bool:
+            if session_id:
+                self._airgapped_sessions.add(session_id)
+            return False
+
+        checker = self.fts_store if self.fts_store is not None else self._airgap_checker
+        if not checker.check_air_gap(text, workspace_root) or is_sensitive_content(
+            text or "", include_tags=True
+        ):
+            return _deny()
+
+        ws_path = Path(workspace_root) if workspace_root else None
         for raw in paths or []:
             if not checker.check_air_gap(raw, workspace_root):
-                return False
+                return _deny()
             if self._matches_private_glob(raw, workspace_root):
-                return False
+                return _deny()
+            if ws_path is not None:
+                cand = Path(raw)
+                if not cand.is_absolute():
+                    cand = ws_path / cand
+                if cand.is_file() and is_sensitive_file(cand, workspace_root):
+                    return _deny()
 
         for match in _PATH_MENTION_RE.finditer(text or ""):
             if self._matches_private_glob(match.group(0), workspace_root):
-                return False
+                return _deny()
 
         for tok in (text or "").split():
             cleaned = tok.strip("`'\",()[]{};:")
             if cleaned and self._matches_private_glob(cleaned, workspace_root):
-                return False
+                return _deny()
 
         for gist in gists or []:
-            if gist.is_private_tier1 or self._matches_private_glob(gist.rel_path, workspace_root):
-                return False
+            if (
+                gist.is_private_tier1
+                or self._matches_private_glob(gist.rel_path, workspace_root)
+                or not checker.check_air_gap(gist.rel_path, workspace_root)
+                or not checker.check_air_gap(gist.semantic_gist, workspace_root)
+                or is_sensitive_content(gist.semantic_gist, include_tags=True)
+            ):
+                return _deny()
+
+        if self._workspace_has_private_files(workspace_root):
+            return _deny()
 
         return True
 
@@ -1108,14 +1318,22 @@ class GateEngine:
             text=prompt_text,
             workspace_root=event.workspace_root,
             paths=event.touched_files,
+            session_id=event.session_id,
         )
 
         # Retrieve Pass-0 candidates from fts_store, metadata, or indexer fallback.
         raw_candidates: list[IndexedGist] = []
         seen_paths: set[str] = set()
+        private_gist_paths: set[str] = set()
+        fts_scores: dict[str, float] = {}
+        fts_rank_by_path: dict[str, int] = {}
 
         def _append_unique(items: list[IndexedGist]) -> None:
             for g in items:
+                if g.is_private_tier1 or self._is_private_hint_path(
+                    g.rel_path, event.workspace_root
+                ):
+                    private_gist_paths.add(g.rel_path)
                 if g.rel_path not in seen_paths:
                     seen_paths.add(g.rel_path)
                     raw_candidates.append(g)
@@ -1124,6 +1342,9 @@ class GateEngine:
             fts_res = self.fts_store.search_candidates(prompt_text, ws_hash, limit=64)
             if not fts_res.cloud_egress_allowed:
                 cloud_egress_allowed = False
+            fts_scores = dict(getattr(fts_res, "scores", {}) or {})
+            for rank_idx, g in enumerate(fts_res.gists):
+                fts_rank_by_path.setdefault(g.rel_path, rank_idx)
             _append_unique(fts_res.gists)
 
         meta_gists = self._coerce_metadata_candidates(
@@ -1142,6 +1363,7 @@ class GateEngine:
             text=prompt_text,
             workspace_root=event.workspace_root,
             gists=raw_candidates,
+            session_id=event.session_id,
         ):
             cloud_egress_allowed = False
 
@@ -1213,19 +1435,33 @@ class GateEngine:
                 "[QUADGATE_MODE: Read-only brainstorm detected; confirm before mutating files]"
             )
 
+        is_local_offline_driver = isinstance(active_driver, (ZeroDepDriver, LocalOnnxDriver))
         base_scores: dict[str, float] = {}
         for hid, rel_path in head_to_path.items():
-            base_scores[rel_path] = probs.get(hid, 0.0)
+            dp = probs.get(hid, 0.0)
+            if is_local_offline_driver and rel_path not in private_gist_paths:
+                p0 = fts_scores.get(rel_path, 0.0)
+                if p0 >= 0.70 and dp >= 0.45:
+                    dp = max(dp, min(1.0, 0.50 * dp + 0.50 * p0))
+                    if fts_rank_by_path.get(rel_path, 99) < 3 and p0 >= 0.80 and dp >= 0.55:
+                        dp = max(dp, min(0.95, 0.35 * dp + 0.65 * p0))
+            base_scores[rel_path] = dp
 
         boosted_scores = dict(base_scores)
+        non_private_paths = [
+            p
+            for p in base_scores
+            if p not in private_gist_paths
+            and not self._is_private_hint_path(p, event.workspace_root)
+        ]
         top_hit_path: str | None = None
-        if base_scores:
-            top_hit_path = max(base_scores, key=lambda p: base_scores[p])
+        if non_private_paths:
+            top_hit_path = max(non_private_paths, key=lambda p: base_scores[p])
 
         # Git co-change boost: p*_j = min(1.0, p_cal_j + 0.12 * w_cochange(i*, j)) when w > 0.40
         if self.cochange is not None and top_hit_path is not None:
             for cand_path in list(boosted_scores.keys()):
-                if cand_path == top_hit_path:
+                if cand_path == top_hit_path or cand_path in private_gist_paths:
                     continue
                 w = self.cochange.weight(top_hit_path, cand_path)
                 if w > _COCHANGE_BOOST_THRESHOLD:
@@ -1240,6 +1476,8 @@ class GateEngine:
                 p
                 for p, sc in sorted(boosted_scores.items(), key=lambda kv: -kv[1])
                 if sc >= self.thresholds.gate1_context_hint_min
+                and p not in private_gist_paths
+                and not self._is_private_hint_path(p, event.workspace_root)
             ]
             if not seed_paths and top_hit_path is not None and boosted_scores[top_hit_path] >= 0.50:
                 seed_paths = [top_hit_path]
@@ -1250,7 +1488,11 @@ class GateEngine:
                 )
                 for assoc_path, w_assoc in assoc.items():
                     norm_assoc = _normalize_rel_posix(assoc_path, event.workspace_root)
-                    if not norm_assoc or _is_forbidden_dotenv(norm_assoc):
+                    if (
+                        not norm_assoc
+                        or norm_assoc in private_gist_paths
+                        or self._is_private_hint_path(norm_assoc, event.workspace_root)
+                    ):
                         continue
                     cur_val = boosted_scores.get(norm_assoc, 0.0)
                     floor_val = 0.56 + 0.40 * w_assoc if w_assoc >= 0.50 else 0.0
@@ -1265,7 +1507,9 @@ class GateEngine:
                 boosted_scores.items(),
                 key=lambda kv: (-kv[1], -base_scores.get(kv[0], 0.0), kv[0]),
             )
-            if score >= self.thresholds.gate1_context_hint_min and not _is_forbidden_dotenv(path)
+            if score >= self.thresholds.gate1_context_hint_min
+            and path not in private_gist_paths
+            and not self._is_private_hint_path(path, event.workspace_root)
         ]
         tail_hints = qualified[:4]
 
@@ -1441,14 +1685,16 @@ class GateEngine:
 
         enclosing_context = _extract_enclosing_context(event, target_paths)
         proposed_change = _extract_proposed_change_text(event)
-        query_parts: list[str] = []
+        base_parts: list[str] = []
         if target_paths:
-            query_parts.append(f"Target: {', '.join(target_paths)}")
+            base_parts.append(f"Target: {', '.join(target_paths)}")
         if enclosing_context:
-            query_parts.append(f"[ENCLOSING_CONTEXT]\n{enclosing_context}")
+            base_parts.append(f"[ENCLOSING_CONTEXT]\n{enclosing_context}")
+        query_parts = list(base_parts)
         if proposed_change:
             query_parts.append(f"[PROPOSED_CHANGE]\n{proposed_change}")
         if not proposed_change and event.prompt_text:
+            base_parts.append(event.prompt_text)
             query_parts.append(event.prompt_text)
 
         query_text = "\n\n".join(query_parts).strip()
@@ -1463,6 +1709,7 @@ class GateEngine:
             text=query_text,
             workspace_root=event.workspace_root,
             paths=target_paths,
+            session_id=event.session_id,
         )
         active_driver = self._select_active_driver(cloud_egress_allowed)
 
@@ -1475,12 +1722,47 @@ class GateEngine:
             )
             for inv in active_invariants
         ]
-        scores = await self._classify_with_budget(
-            active_driver,
-            query_text,
-            inv_heads,
-            cloud_egress_allowed=cloud_egress_allowed,
-        )
+        _chunk_size = 12_000
+        _chunk_stride = 10_000
+        if len(proposed_change) > _chunk_size:
+            seen_windows: set[str] = set()
+            scores = {inv.id: 0.0 for inv in active_invariants}
+            for pos in range(0, len(proposed_change), _chunk_stride):
+                win = proposed_change[pos:pos + _chunk_size]
+                if not win:
+                    break
+                if win not in seen_windows:
+                    seen_windows.add(win)
+                    w_query = "\n\n".join(
+                        [*base_parts, f"[PROPOSED_CHANGE_WINDOW@{pos}]\n{win}"]
+                    ).strip()
+                    w_egress = self._check_air_gap(
+                        text=w_query,
+                        workspace_root=event.workspace_root,
+                        paths=target_paths,
+                        session_id=event.session_id,
+                    )
+                    if not w_egress:
+                        cloud_egress_allowed = False
+                    w_driver = self._select_active_driver(w_egress)
+                    w_scores = await self._classify_with_budget(
+                        w_driver,
+                        w_query,
+                        inv_heads,
+                        cloud_egress_allowed=w_egress,
+                    )
+                    for inv_id, sc in w_scores.items():
+                        if sc > scores.get(inv_id, 0.0):
+                            scores[inv_id] = sc
+                if pos + _chunk_size >= len(proposed_change):
+                    break
+        else:
+            scores = await self._classify_with_budget(
+                active_driver,
+                query_text,
+                inv_heads,
+                cloud_egress_allowed=cloud_egress_allowed,
+            )
 
         max_score = max(scores.values(), default=0.0)
         will_block = max_score >= self.thresholds.gate2_invariant_block
@@ -1621,9 +1903,43 @@ class GateEngine:
             return self.tiers.mid
         return self.tiers.frontier
 
+    @staticmethod
+    def _swarm_model_for_tier(tier: ModelTier, requested_model: object = None) -> str:
+        frontier_explicit = {
+            "gemini-4-argon-high",
+            "gemini-4-argon-medium",
+            "gemini-4-carbon-high",
+            "gemini-4-carbon-medium",
+            "gemini-4-hydrogen-high",
+            "gemini-4-hydrogen-medium",
+            "gemini-4-hydrogen-xhigh",
+            "claude-opus-5-5-high",
+            "claude-opus-5-5-medium",
+            "gemini-pro-orchestrator",
+            "gemini-pro-orchestrator-argon",
+        }
+        if tier == ModelTier.FLOOR:
+            return os.environ.get("QUADGATE_SWARM_FLOOR_MODEL", "gemini-3.8-flash-low")
+        if tier == ModelTier.MID:
+            return os.environ.get("QUADGATE_SWARM_MID_MODEL", "gemini-3.8-flash-high")
+        if isinstance(requested_model, str) and requested_model.strip() in frontier_explicit:
+            return requested_model.strip()
+        return os.environ.get("QUADGATE_SWARM_FRONTIER_MODEL", "gemini-4-argon-high")
+
     async def evaluate_gate3_subagent(self, event: GateEvent) -> GateVerdict:
         """Select lowest-cost model tier satisfying graph-weighted ECC equation."""
         t0 = time.perf_counter()
+
+        if event.tool_name == "swarm":
+            raw_action = event.tool_args.get("action")
+            action_str = str(raw_action).strip().lower() if raw_action is not None else "add"
+            if action_str != "add":
+                return GateVerdict(
+                    action=VerdictAction.ALLOW,
+                    gate=GateType.SUBAGENT_GOVERNOR,
+                    reason=f"Non-spawning swarm action {action_str!r} allowed unchanged.",
+                    latency_ms=(time.perf_counter() - t0) * 1000.0,
+                )
 
         subagent_prompt = (
             event.prompt_text
@@ -1633,6 +1949,16 @@ class GateEngine:
             or str(event.tool_args.get("task") or "")
             or "Execute subagent task"
         ).strip()
+        if event.tool_name == "swarm":
+            raw_tasks = event.tool_args.get("tasks")
+            if isinstance(raw_tasks, list):
+                task_items = [
+                    str(item).strip()
+                    for item in raw_tasks
+                    if isinstance(item, str) and item.strip()
+                ]
+                if task_items and "Tasks:" not in subagent_prompt:
+                    subagent_prompt = f"{subagent_prompt}\nTasks: {'; '.join(task_items)}"
 
         target_paths = self._resolve_gate3_targets(event, subagent_prompt)
 
@@ -1657,6 +1983,7 @@ class GateEngine:
             text=subagent_prompt,
             workspace_root=event.workspace_root,
             paths=target_paths,
+            session_id=event.session_id,
         )
         active_driver = self._select_active_driver(cloud_egress_allowed)
 
@@ -1758,12 +2085,21 @@ class GateEngine:
                 selected_ecc = ecc_k
                 break
 
-        selected_model = self._model_for_tier(selected_tier)
         updated_tool_args = dict(event.tool_args)
-        if event.harness == HarnessType.ANTIGRAVITY or "Model" in updated_tool_args:
-            updated_tool_args["Model"] = selected_model
-        if event.harness != HarnessType.ANTIGRAVITY or "model" in updated_tool_args:
+        if event.tool_name == "swarm":
+            selected_model = self._swarm_model_for_tier(
+                selected_tier,
+                event.tool_args.get("model"),
+            )
             updated_tool_args["model"] = selected_model
+            if "Model" not in event.tool_args:
+                updated_tool_args.pop("Model", None)
+        else:
+            selected_model = self._model_for_tier(selected_tier)
+            if event.harness == HarnessType.ANTIGRAVITY or "Model" in updated_tool_args:
+                updated_tool_args["Model"] = selected_model
+            if event.harness != HarnessType.ANTIGRAVITY or "model" in updated_tool_args:
+                updated_tool_args["model"] = selected_model
 
         return GateVerdict(
             action=VerdictAction.MODIFY,
@@ -1804,7 +2140,8 @@ class GateEngine:
 
             if (
                 len(template) == 4
-                and template[:3] in (["python", "-m", "py_compile"], ["python3", "-m", "py_compile"])
+                and template[:3]
+                in (["python", "-m", "py_compile"], ["python3", "-m", "py_compile"])
             ):
                 try:
                     await asyncio.to_thread(py_compile.compile, str(candidate), doraise=True)
@@ -1863,6 +2200,7 @@ class GateEngine:
     def _gather_oracle_artifacts(self, event: GateEvent) -> list[tuple[str, str]]:
         ws_path = Path(event.workspace_root or ".")
         artifacts: list[tuple[str, str]] = []
+        seen_names: set[str] = set()
         targets = event.touched_files or _extract_target_paths(event)
 
         for raw in targets:
@@ -1872,8 +2210,17 @@ class GateEngine:
             if candidate.is_file():
                 try:
                     artifacts.append((raw, candidate.read_text(encoding="utf-8", errors="replace")))
+                    seen_names.add(raw)
                 except OSError:
                     continue
+
+        meta_cands = event.metadata.get("candidate_files")
+        if isinstance(meta_cands, dict):
+            for raw_k, raw_v in meta_cands.items():
+                k_str = str(raw_k).strip()
+                if k_str and k_str not in seen_names and isinstance(raw_v, str) and raw_v.strip():
+                    artifacts.append((k_str, raw_v))
+                    seen_names.add(k_str)
 
         if not artifacts:
             fallback_text = _extract_proposed_change_text(event)
@@ -2101,8 +2448,39 @@ class GateEngine:
         _event: GateEvent,
         artifacts: list[tuple[str, str]],
     ) -> str | None:
+        workspace_defined_ids: set[str] = set()
+        ws_raw = getattr(_event, "workspace_root", "") or ""
+        if ws_raw:
+            ws_path = Path(ws_raw)
+            if ws_path.is_dir():
+                for root_str, dirnames, filenames in os.walk(ws_path):
+                    dirnames[:] = [
+                        d
+                        for d in dirnames
+                        if d not in _EXCLUDED_WALK_DIRS and not d.startswith(".")
+                    ]
+                    for fname in filenames:
+                        if not fname.lower().endswith((".md", ".markdown", ".txt", ".rst")):
+                            continue
+                        try:
+                            doc_text = (Path(root_str) / fname).read_text(
+                                encoding="utf-8", errors="ignore"
+                            )
+                        except OSError:
+                            continue
+                        for m in _SECTION_DEF_RE.finditer(doc_text):
+                            if m.group(3) is not None:
+                                workspace_defined_ids.add(m.group(3).strip().upper())
+                            else:
+                                kind = (m.group(1) or "").strip().lower()
+                                ident = (m.group(2) or "").strip().upper()
+                                if kind and ident:
+                                    workspace_defined_ids.add(f"{kind}:{ident}")
+                                if ident:
+                                    workspace_defined_ids.add(ident)
+
         for name, text in artifacts:
-            defined_ids: set[str] = set()
+            defined_ids: set[str] = set(workspace_defined_ids)
             for m in _SECTION_DEF_RE.finditer(text):
                 if m.group(3) is not None:
                     defined_ids.add(m.group(3).strip().upper())
@@ -2245,14 +2623,17 @@ class GateEngine:
         if event.touched_files:
             evidence_parts.append("\n".join(event.touched_files))
         for name, content in artifacts:
-            if content and content not in (event.diff_text or ""):
-                evidence_parts.append(f"{name}\n{content[:4000]}")
+            if content and content.strip():
+                if name == "diff_artifact.txt" and content in (event.diff_text or ""):
+                    continue
+                evidence_parts.append(f"FILE: {name}\n{content[:4000]}")
         evidence_text = "\n\n".join(evidence_parts).strip()
 
         cloud_egress_allowed = self._check_air_gap(
             text=f"{event.prompt_text or ''}\n{evidence_text}",
             workspace_root=event.workspace_root,
             paths=event.touched_files,
+            session_id=event.session_id,
         )
         active_driver = self._select_active_driver(cloud_egress_allowed)
 
@@ -2279,9 +2660,14 @@ class GateEngine:
             clause_scores: list[float] = []
             for idx, clause in enumerate(clauses):
                 dp = driver_probs.get(f"clause:{idx}", 0.0)
+                cov = _score_zero_dep_clause_coverage(clause, evidence_text)
                 if type(active_driver) is ZeroDepDriver:
-                    cov = _score_zero_dep_clause_coverage(clause, evidence_text)
-                    clause_scores.append(min(1.0, 0.30 * dp + 0.70 * cov))
+                    if cov >= 0.85:
+                        clause_scores.append(min(1.0, max(dp, 0.30 * dp + 0.70 * cov)))
+                    else:
+                        clause_scores.append(min(1.0, 0.30 * dp + 0.70 * cov))
+                elif cov >= 0.90:
+                    clause_scores.append(min(1.0, max(dp, 0.30 * dp + 0.70 * cov)))
                 else:
                     clause_scores.append(dp)
 

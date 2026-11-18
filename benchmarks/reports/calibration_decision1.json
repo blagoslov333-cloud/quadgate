@@ -1,0 +1,14 @@
+{
+  "driver_id": "decision1",
+  "method": "temperature_scaling",
+  "temperature": 1.0,
+  "platt_scale": 1.0,
+  "platt_bias": 0.0,
+  "isotonic_x_knots": [],
+  "isotonic_y_knots": [],
+  "ece": 0.025586895810000898,
+  "max_allowed_ece": 0.05,
+  "sample_count": 6,
+  "dataset_sha256": "c9e0b771da2b2db64cfab3449edeecaa8d9c0a95610ae2833baa740e6687b8af",
+  "created_at_iso": "2026-11-17T15:51:38.259775+00:00"
+}

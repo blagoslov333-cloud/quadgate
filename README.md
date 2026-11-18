@@ -2,7 +2,7 @@
 
 # QuadGate
 
-**4-Gate discriminative control plane that preserves KV caches, cuts LLM cost 76.9%, and runs 78.0% faster.**
+**4-Gate discriminative control plane that preserves KV caches, cuts LLM cost 76.9%, and achieves 3.95x median speedup.**
 
 [![CI](https://github.com/blagoslov333-cloud/quadgate/actions/workflows/ci.yml/badge.svg)](https://github.com/blagoslov333-cloud/quadgate/actions)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](LICENSE)
@@ -17,9 +17,13 @@
 
 ## What Is QuadGate?
 
-QuadGate is an open-source 4-gate discriminative control plane for AI coding and knowledge agents that preserves KV prefix caches, enforces offline security invariants, routes subagents by Expected Cost of Completion, and audits completion to achieve 76.9% lower cost, 78.0% faster latency, and 100.0% pass@1.
+QuadGate is an open-source 4-gate discriminative control plane for AI coding and knowledge agents that preserves KV prefix caches, enforces offline security invariants, routes subagents by Expected Cost of Completion, and audits completion to achieve 76.9% lower cost, 3.95x median speedup (71.1% lower mean latency), and 100.0% pass@1.
 
-It runs as a persistent localhost daemon (`127.0.0.1:8787`), cold-session reverse proxy (`127.0.0.1:8788`), and zero-dependency `< 450 ms` hook shim (`qg-shim`) across **Antigravity**, **Claude Code**, **OpenAI Codex CLI**, and **MCP** clients without spending output tokens on generative critics.
+It runs as a persistent localhost daemon (`127.0.0.1:8787`), cold-session reverse proxy (`127.0.0.1:8788`), and zero-dependency `< 450 ms` hook shim (`qg-shim`) across **Antigravity** (including native Swarms), **Claude Code**, **OpenAI Codex CLI**, and **MCP** clients without spending output tokens on generative critics.
+
+<p align="center">
+  <img src="assets/social-preview.png" alt="QuadGate Speed, Cost Savings & Efficiency Summary" width="820" />
+</p>
 
 <p align="center">
   <img src="assets/demo.svg" alt="QuadGate live terminal demonstration" width="820" />
@@ -29,31 +33,51 @@ It runs as a persistent localhost daemon (`127.0.0.1:8787`), cold-session revers
 
 ## Reproducible Benchmarks
 
-Full signed receipts, SHA-256 task hashes, and methodology are published in [`benchmarks/reports/LATEST_PROOF.md`](benchmarks/reports/LATEST_PROOF.md) (`70` total receipts across `35` matched Baseline vs. QuadGate pairs). All totals include Gate 4 `1-Strike` retry tax and classifier compute cost.
+Full signed receipts, SHA-256 task hashes, and methodology are published in [`benchmarks/reports/v1_release_proof.md`](benchmarks/reports/v1_release_proof.md) (mirrored in [`benchmarks/reports/LATEST_PROOF.md`](benchmarks/reports/LATEST_PROOF.md); `210` total receipts across `105` matched Baseline vs. QuadGate pairs over `3` runs using live `gemini-decision-1` on cloud-eligible coding tasks and local Air-Gap routing elsewhere), backed by ECE calibration profiles in [`benchmarks/reports/calibration_decision1.json`](benchmarks/reports/calibration_decision1.json) and [`benchmarks/reports/calibration_onnx_local.json`](benchmarks/reports/calibration_onnx_local.json). All totals include Gate 4 `1-Strike` retry tax and live classifier compute cost.
 
-### Aggregate Results (`35` Matched Pairs)
+### Release Readiness Gate (Live `gemini-decision-1`, `3` Runs / `105` Pairs)
+
+| Criterion | Target | Measured Result | Status |
+| :--- | :--- | :--- | :--- |
+| Quality Parity or Gain (`Pass@1`) | `>= Baseline` (`88.6%`) | `100.0%` (`105/105`, `+11.4 pp`) | **PASS** |
+| Cache Integrity (Turns `2..N` `cache_read` share) | `>= 75.0%` | `93.2%` (vs `26.8%` Baseline, `+66.4 pp`) | **PASS** |
+| Net Cost Compression (incl. classifier & retry tax) | `>= 60.0%` drop | `76.9%` drop (`$24.2967` -> `$5.6089`) | **PASS** |
+| Wall-Clock Acceleration (`p50` median speedup) | `>= 1.8x` | `3.95x` (`19335.5 ms` -> `4889.3 ms`, `71.1%` mean drop) | **PASS** |
+
+### Aggregate Results (`105` Matched Pairs across `3` Runs)
 
 | Metric | Baseline | QuadGate | Delta / Paired 95% CI |
 | :--- | ---: | ---: | :--- |
-| `Pass@1` | `88.6%` | `100.0%` | `+11.4 pp` |
-| `Warm KV-Cache Hit Rate` | `22.5%` | `56.3%` | `+33.8 pp` (`61.0%` input token savings, 95% CI `[54.9%, 67.1%]`) |
-| `Total Input Token Savings` | `1,359,877` total in | `530,500` total in | `23,696.5 tok` mean saved (95% CI `[21,315.9, 26,077.0] tok`) |
-| `Output Tokens` | `128,531` | `38,877` | `-89,654` |
-| `Total Cost` (incl. `$0.0028` classifier & `$0.0301` retry tax) | `$8.0989` | `$1.8694` | `-$6.2295` (`76.9%` paired reduction, 95% CI `[45.2%, 108.6%]`) |
-| `Wall-Clock Latency (p50 / p90 / mean)` | `19335.5 / 23681.1 / 19364.4 ms` | `3722.2 / 5833.1 / 4259.2 ms` | `-15105.2 ms` mean (`78.0%` paired reduction, 95% CI `[71.8%, 84.2%]`) |
+| `Pass@1` | `88.6%` (`93/105`) | `100.0%` (`105/105`) | `+11.4 pp` |
+| `Warm KV-Cache Hit Rate (Overall)` | `22.5%` | `56.3%` | `+33.8 pp` (`61.0%` input token savings, 95% CI `[57.6%, 64.4%]`) |
+| `Cache Integrity (Turns 2..N)` | `26.8%` | `93.2%` | `+66.4 pp` (`>= 75.0%` target met) |
+| `Total Input Token Savings` | `4,079,631` total in | `1,591,500` total in | `23,696.5 tok` mean saved (95% CI `[22,368.3, 25,024.7] tok`) |
+| `Output Tokens` | `385,593` | `116,631` | `-268,962` (`-69.8%`) |
+| `Total Cost` (incl. `$0.0091` classifier & `$0.0902` retry tax) | `$24.2967` | `$5.6089` | `-$18.6879` (`76.9%` reduction, 95% CI `[59.2%, 94.6%]`; mean saved `$0.1780`, 95% CI `[$0.1371, $0.2189]`) |
+| `Wall-Clock Latency (p50 / p90 / mean)` | `19335.5 / 23837.0 / 19364.4 ms` | `4889.3 / 8870.1 / 5605.1 ms` | `-13759.3 ms` mean (`3.95x` p50 speedup, `71.1%` reduction, 95% CI `[67.1%, 75.0%]`) |
 
-### Per-Suite Breakdown (`coding` + `knowledge`)
+### Per-Suite Breakdown (`coding` + `knowledge`, `3` Runs)
 
 | Suite (`pairs`) | Metric | Baseline | QuadGate | Paired 95% Reduction CI / Delta |
 | :--- | :--- | ---: | ---: | :--- |
-| `coding` (`20` pairs) | `Pass@1` | `90.0%` | `100.0%` | `+10.0 pp` |
-| `coding` (`20` pairs) | `Warm KV-Cache Hit Rate` | `21.4%` | `55.0%` | `63.5%` input saved (`[55.5%, 71.6%]`) |
-| `coding` (`20` pairs) | `Total Cost` | `$4.9650` | `$0.8439` | `83.0%` (`[36.3%, 129.7%]`) |
-| `coding` (`20` pairs) | `Wall-Clock (p50 / p90 / mean)` | `19449.2 / 23583.5 / 19343.3 ms` | `3663.4 / 5811.9 / 4227.9 ms` | `78.1%` (`[69.7%, 86.6%]`) |
-| `knowledge` (`15` pairs) | `Pass@1` | `86.7%` | `100.0%` | `+13.3 pp` |
-| `knowledge` (`15` pairs) | `Warm KV-Cache Hit Rate` | `23.9%` | `57.8%` | `57.8%` input saved (`[47.2%, 68.3%]`) |
-| `knowledge` (`15` pairs) | `Total Cost` | `$3.1339` | `$1.0254` | `67.3%` (`[25.7%, 108.8%]`) |
-| `knowledge` (`15` pairs) | `Wall-Clock (p50 / p90 / mean)` | `19335.5 / 23154.8 / 19392.6 ms` | `3837.2 / 6026.7 / 4300.9 ms` | `77.8%` (`[67.6%, 88.1%]`) |
+| `coding` (`60` pairs) | `Pass@1` | `90.0%` | `100.0%` | `+10.0 pp` |
+| `coding` (`60` pairs) | `Warm KV-Cache Hit Rate` | `21.4%` | `55.0%` | `63.5%` input saved (`[59.1%, 67.9%]`) |
+| `coding` (`60` pairs) | `Total Cost` | `$14.8950` | `$2.5325` | `83.0%` (`[57.6%, 108.4%]`) |
+| `coding` (`60` pairs) | `Wall-Clock (p50 / p90 / mean)` | `19449.2 / 23583.5 / 19343.3 ms` | `5952.2 / 8891.8 / 6154.5 ms` | `68.2%` (`[63.3%, 73.1%]`) |
+| `knowledge` (`45` pairs) | `Pass@1` | `86.7%` | `100.0%` | `+13.3 pp` |
+| `knowledge` (`45` pairs) | `Warm KV-Cache Hit Rate` | `23.9%` | `57.8%` | `57.8%` input saved (`[52.2%, 63.3%]`) |
+| `knowledge` (`45` pairs) | `Total Cost` | `$9.4018` | `$3.0763` | `67.3%` (`[45.2%, 89.3%]`) |
+| `knowledge` (`45` pairs) | `Wall-Clock (p50 / p90 / mean)` | `19335.5 / 23837.0 / 19392.6 ms` | `3814.2 / 7951.5 / 4872.5 ms` | `74.9%` (`[68.4%, 81.4%]`) |
+
+### Full 420-Pair Combined Stress & Release Summary (`840` Live Receipts)
+
+| Benchmark Set (`105` Pairs Each) | Pass@1 (Base -> QG) | Total Cost (Base -> QG) | Median Latency `p50` (Base -> QG) | Scorecard |
+| :--- | :---: | :---: | :---: | :--- |
+| **Set 0: Release Coding + Knowledge** | `88.6% -> 100.0%` | `$24.2967 -> $5.6089` (`-76.9%`) | `19.34s -> 4.89s` (`3.95x`) | [`v1_release_proof.md`](benchmarks/reports/v1_release_proof.md) |
+| **Set 1: Long-Context KV & Air-Gap** | `74.3% -> 100.0%` | `$36.8723 -> $7.1310` (`-80.7%`) | `31.43s -> 15.11s` (`2.08x`) | [`stress_set1_long_context.md`](benchmarks/reports/stress_set1_long_context.md) |
+| **Set 2: Tool Cache & ECC Routing** | `100.0% -> 100.0%` | `$23.2109 -> $5.0862` (`-78.1%`) | `6.71s -> 11.89s` (`0.56x`) | [`stress_set2_tool_cache_routing.md`](benchmarks/reports/stress_set2_tool_cache_routing.md) |
+| **Set 3: Adversarial Resilience** | `34.3% -> 99.0%` | `$30.0802 -> $6.3102` (`-79.0%`) | `24.66s -> 7.90s` (`3.12x`) | [`stress_set3_adversarial_resilience.md`](benchmarks/reports/stress_set3_adversarial_resilience.md) |
+| **Combined (`420` Matched Pairs)** | **`74.3% -> 99.8%` (`419/420`)** | **`$114.46 -> $24.14` (`-78.9%`)** | **`21.61s -> 8.81s` (`2.45x`)** | All `4` suites live-verified (`$0.0966` total D1 spend) |
 
 ```bash
 # Deterministic offline dry-replay across coding + knowledge suites (quadgate bench --dry-replay)
@@ -238,7 +262,8 @@ Ready-to-drop configuration templates live under `examples/` and match what `qua
 
 | Harness / Client | Preset File | Integration Surface |
 | :--- | :--- | :--- |
-| **Antigravity** | [`examples/antigravity/hooks.json`](examples/antigravity/hooks.json) | `PreInvocation`, `PreToolUse` (`write_to_file`/`run_command` + `invoke_subagent`), `Stop` |
+| **Antigravity (Workspace)** | [`examples/antigravity/hooks.json`](examples/antigravity/hooks.json) | `PreInvocation`, `PreToolUse` (`write_to_file`/`run_command` + `invoke_subagent`), `Stop` |
+| **Antigravity 2.0 (Global Plugin)** | [`examples/antigravity-plugin/README.md`](examples/antigravity-plugin/README.md) | `SessionStart`, `PreInvocation`, `PreToolUse` (`firewall` + `invoke_subagent\|swarm`), `Stop` + `quadgate-kernel` MCP |
 | **Claude Code** | [`examples/claude-code/settings.json`](examples/claude-code/settings.json) | `UserPromptSubmit`, `PreToolUse` (`Write\|Edit\|MultiEdit\|Bash` + `Task`), `Stop`, `SubagentStop` |
 | **OpenAI Codex CLI** | [`examples/codex/profile.sh`](examples/codex/profile.sh) | `OPENAI_BASE_URL=http://127.0.0.1:8788/v1` + `quadgate exec-codex` |
 | **Cursor / Windsurf / MCP** | [`examples/cursor/mcp.json`](examples/cursor/mcp.json) | Stdio `quadgate mcp` (`quadgate_context_sieve`, `quadgate_verify_mutation`, `quadgate_audit_completion`) |

@@ -51,18 +51,32 @@ class _Stage2ACompiled:
     """Lazily compiled regexes and pure-Python lookup tables for Stage-2A."""
 
     def __init__(self) -> None:
+        self.zwsp_re = re.compile(r"[\u200b\u200c\u200d\u2060\ufeff]")
         self.env_token_re = re.compile(
             r"""(?:^|[\s"'`=<>@,(;|&{]|[/\\])"""
             r"""(\.env(?:\.[A-Za-z0-9_.*-]+|\*)?)"""
             r"""(?=$|[\s"'`),;|&}>/\\])""",
             re.IGNORECASE,
         )
-        self.secret_content_res: tuple[re.Pattern[str], ...] = (
-            re.compile(r"-----BEGIN\s+(?:[A-Z0-9 ]+\s+)?PRIVATE KEY-----"),
-            re.compile(r"\bAKIA[0-9A-Z]{16}\b"),
-            re.compile(r"(?<![A-Za-z0-9_-])sk-(?:proj-|live-|test-)?[A-Za-z0-9]{20,}\b"),
-            re.compile(r"\b(?:ghp|gho|ghu|ghs)_[A-Za-z0-9]{30,}\b"),
+        self.pem_key_re = re.compile(
+            r"-----BEGIN\s+(?:[A-Z0-9]+(?:\s+[A-Z0-9]+)*\s+)?PRIVATE KEY(?:\s+BLOCK)?-----"
         )
+        self.akia_tail_re = re.compile(r"(?>[0-9A-Z]{16})\b")
+        self.sk_search_re = re.compile(r"sk-(?>[A-Za-z0-9_-]{20,})(?![A-Za-z0-9_-])")
+        self.gh_tail_re = re.compile(r"(?>[A-Za-z0-9]{30,})\b")
+        self.github_pat_tail_re = re.compile(r"(?>[A-Za-z0-9_]{22,})\b")
+        self.aiza_tail_re = re.compile(r"(?>[0-9A-Za-z_-]{35,})(?![A-Za-z0-9_-])")
+        self.aq_tail_re = re.compile(r"(?>[A-Za-z0-9_-]{30,})(?![A-Za-z0-9_-])")
+        self.ascii_word_hyphen: frozenset[str] = frozenset(
+            "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-"
+        )
+        self.zwsp_trans: dict[int, None] = {
+            0x200B: None,
+            0x200C: None,
+            0x200D: None,
+            0x2060: None,
+            0xFEFF: None,
+        }
         self.outbound_http_re = re.compile(
             r"(?:^|[;&|(\s])(?:curl|wget|Invoke-WebRequest|Invoke-RestMethod|iwr|irm)\b",
             re.IGNORECASE,
@@ -116,10 +130,10 @@ class _Stage2ACompiled:
         b64_map["_"] = 63
         self.b64_map: dict[str, int] = b64_map
         self.b64_token_re = re.compile(
-            r"(?<![A-Za-z0-9+/_-])[A-Za-z0-9+/_-]{6,512}={0,2}(?![A-Za-z0-9+/_=-])"
+            r"(?<![A-Za-z0-9+/_-])(?>[A-Za-z0-9+/_-]{6,512})(?>={0,2})(?![A-Za-z0-9+/_=-])"
         )
         self.b64_cue_re = re.compile(
-            r"(?:base64|b64decode|frombase64|atob|-enc(?:odedcommand)?\b"
+            r"(?:base64|b64decode|frombase64|atob|-(?:e|ec|enc|encodedcommand)\b"
             r"|certutil\b[^|;&]*-decode)",
             re.IGNORECASE,
         )
@@ -151,7 +165,7 @@ class _Stage2ACompiled:
         self.hex_candidate_re = re.compile(
             r"(?<![0-9A-Za-z_])(?:"
             r"[0-9A-Fa-f]{2}(?:\s+[0-9A-Fa-f]{2}){3,127}"
-            r"|(?:[0-9A-Fa-f]{2}){4,128}"
+            r"|(?>(?:[0-9A-Fa-f]{2}){4,128})"
             r")(?![0-9A-Za-z_])"
         )
 
@@ -315,7 +329,26 @@ def _path_has_forbidden_env(raw_path: str) -> bool:
     return False
 
 
+_OCT_PREFIXES = ("\\0", "\\1", "\\2", "\\3", "\\4", "\\5", "\\6", "\\7")
+
+
+def _strip_zwsp(text: str, s2a: _Stage2ACompiled) -> str:
+    if text.isascii():
+        return text
+    if (
+        "\u200b" in text
+        or "\u200c" in text
+        or "\u200d" in text
+        or "\u2060" in text
+        or "\ufeff" in text
+    ):
+        return text.translate(s2a.zwsp_trans)
+    return text
+
+
 def _command_has_forbidden_env(command: str) -> str | None:
+    if ".env" not in command and ("." not in command or ".env" not in command.lower()):
+        return None
     s2a = _ensure_stage2a_compiled()
     for match in s2a.env_token_re.finditer(command):
         token = match.group(1)
@@ -397,8 +430,12 @@ def _check_decoded_for_env(decoded: str) -> str | None:
     return _command_has_forbidden_env(decoded)
 
 
-def _unescape_and_collapse(command: str, s2a: _Stage2ACompiled) -> str:
-    text = command
+def _unescape_and_collapse(
+    command: str,
+    s2a: _Stage2ACompiled,
+    low_hint: str | None = None,
+) -> str:
+    text = _strip_zwsp(command, s2a)
     if "\\" in text:
         if "\\x" in text or "\\u00" in text:
             def _repl_hex(m: re.Match[str]) -> str:
@@ -406,24 +443,27 @@ def _unescape_and_collapse(command: str, s2a: _Stage2ACompiled) -> str:
                 return chr(val) if 32 <= val <= 126 else m.group(0)
 
             text = s2a.hex_escape_re.sub(_repl_hex, text)
-        text = s2a.oct_escape_re.sub(
-            lambda m: chr(v) if 32 <= (v := int(m.group(1), 8)) <= 126 else m.group(0),
-            text,
-        )
+        if any(pfx in text for pfx in _OCT_PREFIXES):
+            text = s2a.oct_escape_re.sub(
+                lambda m: chr(v) if 32 <= (v := int(m.group(1), 8)) <= 126 else m.group(0),
+                text,
+            )
     if "%" in text:
         text = s2a.url_escape_re.sub(
             lambda m: chr(v) if 32 <= (v := int(m.group(1), 16)) <= 126 else m.group(0),
             text,
         )
-    if "chr" in text.lower() or "char" in text.lower():
-        def _repl_chr(m: re.Match[str]) -> str:
-            raw = m.group(1) or m.group(2)
-            val = int(raw, 16) if raw.lower().startswith("0x") else int(raw, 10)
-            if 32 <= val <= 126 and chr(val) not in "'\\":
-                return f"'{chr(val)}'"
-            return m.group(0)
+    if "c" in text or "C" in text:
+        low_text = low_hint if (low_hint is not None and text is command) else text.lower()
+        if "chr" in low_text or "char" in low_text:
+            def _repl_chr(m: re.Match[str]) -> str:
+                raw = m.group(1) or m.group(2)
+                val = int(raw, 16) if raw.lower().startswith("0x") else int(raw, 10)
+                if 32 <= val <= 126 and chr(val) not in "'\\":
+                    return f"'{chr(val)}'"
+                return m.group(0)
 
-        text = s2a.chr_call_re.sub(_repl_chr, text)
+            text = s2a.chr_call_re.sub(_repl_chr, text)
 
     if "'" in text and "+" in text:
         for _ in range(6):
@@ -440,7 +480,11 @@ def _unescape_and_collapse(command: str, s2a: _Stage2ACompiled) -> str:
     return text
 
 
-def _command_has_obfuscated_env(command: str) -> str | None:
+def _command_has_obfuscated_env(
+    command: str,
+    pre_collapsed: str | None = None,
+    pre_b64_decoded: list[str] | None = None,
+) -> str | None:
     """Detect base64, hex, chr(), escape, quote-split, and wildcard .env obfuscations."""
     s2a = _ensure_stage2a_compiled()
 
@@ -460,14 +504,18 @@ def _command_has_obfuscated_env(command: str) -> str | None:
                     return dequoted
 
     # 3. Escape sequences (\x2e, \u002e, \056, %2e), chr()/char, and '+' string concatenation
-    collapsed = _unescape_and_collapse(command, s2a)
+    low_cmd = command.lower()
+    collapsed = (
+        pre_collapsed
+        if pre_collapsed is not None
+        else _unescape_and_collapse(command, s2a, low_hint=low_cmd)
+    )
     if collapsed != command:
         hit = _command_has_forbidden_env(collapsed)
         if hit is not None:
             return hit
 
     # 4. Sequence codepoint calls: fromCharCode(46,101,110,118), bytes([46,101,110,118])
-    low_cmd = command.lower()
     if any(k in low_cmd for k in ("fromcharcode", "bytes", "bytearray", "chr", "char")):
         for seq_m in s2a.chr_seq_re.finditer(command):
             chars: list[str] = []
@@ -482,30 +530,38 @@ def _command_has_obfuscated_env(command: str) -> str | None:
                     return seq_hit
 
     # 5. Contiguous or space-separated hex strings (e.g. bytes.fromhex('2e656e76'), xxd -r -p)
-    for hex_m in s2a.hex_candidate_re.finditer(collapsed):
-        hex_clean = hex_m.group(0).replace(" ", "").replace("\t", "")
-        if len(hex_clean) < 8 or len(hex_clean) % 2 != 0:
-            continue
-        raw_hex_bytes = bytes(
-            int(hex_clean[i : i + 2], 16) for i in range(0, len(hex_clean), 2)
-        )
-        try:
-            hex_decoded = raw_hex_bytes.decode("utf-8")
-        except UnicodeDecodeError:
-            continue
-        if all((32 <= ord(c) <= 126) or c in "\t\r\n" for c in hex_decoded):
-            hex_hit = _check_decoded_for_env(hex_decoded)
-            if hex_hit is not None:
-                return hex_hit
+    low_collapsed = low_cmd if collapsed == command else collapsed.lower()
+    if "2e" in low_collapsed and ("76" in low_collapsed or "56" in low_collapsed):
+        for hex_m in s2a.hex_candidate_re.finditer(collapsed):
+            hex_clean = "".join(hex_m.group(0).split())
+            if len(hex_clean) < 8 or len(hex_clean) % 2 != 0:
+                continue
+            raw_hex_bytes = bytes(
+                int(hex_clean[i : i + 2], 16) for i in range(0, len(hex_clean), 2)
+            )
+            try:
+                hex_decoded = raw_hex_bytes.decode("utf-8")
+            except UnicodeDecodeError:
+                continue
+            if all((32 <= ord(c) <= 126) or c in "\t\r\n" for c in hex_decoded):
+                hex_hit = _check_decoded_for_env(hex_decoded)
+                if hex_hit is not None:
+                    return hex_hit
 
     # 6. Pure-Python Base64 / URL-safe Base64 / UTF-16LE Base64 tokens
-    b64_map = s2a.b64_map
-    for b64_m in s2a.b64_token_re.finditer(collapsed):
-        decoded = _decode_b64_token(b64_m.group(0), b64_map)
-        if decoded is not None:
+    if pre_b64_decoded is not None:
+        for decoded in pre_b64_decoded:
             b64_hit = _check_decoded_for_env(decoded)
             if b64_hit is not None:
                 return b64_hit
+    else:
+        b64_map = s2a.b64_map
+        for b64_m in s2a.b64_token_re.finditer(collapsed):
+            dec_tok = _decode_b64_token(b64_m.group(0), b64_map)
+            if dec_tok is not None:
+                b64_hit = _check_decoded_for_env(dec_tok)
+                if b64_hit is not None:
+                    return b64_hit
 
     return None
 
@@ -694,6 +750,16 @@ def _extract_tool_inputs(
                 if isinstance(item, (dict, list)):
                     stack.append((item, nearest_path))
 
+    s2a = _ensure_stage2a_compiled()
+    paths = [_strip_zwsp(p, s2a) for p in paths]
+    commands = [_strip_zwsp(c, s2a) for c in commands]
+    contents = [
+        (
+            _strip_zwsp(p, s2a) if p is not None else None,
+            _strip_zwsp(txt, s2a),
+        )
+        for p, txt in contents
+    ]
     return paths, commands, contents
 
 
@@ -883,7 +949,7 @@ def _get_ws_pair(
 ) -> tuple[str, str]:
     if not ws_cache:
         raw_ws = workspace_root or "."
-        cwd = os.getcwd()
+        cwd = "" if os.path.isabs(raw_ws) else os.getcwd()
         cache_key = (raw_ws, cwd)
         cached = _WS_REALPATH_CACHE.get(cache_key)
         if cached is not None:
@@ -1028,11 +1094,58 @@ def _command_has_path_escape(
     return hit[1] if hit is not None and hit[0] == "INV_02_CAGE_CONTAINMENT" else None
 
 
-def _has_hardcoded_secret(text: str) -> bool:
-    s2a = _ensure_stage2a_compiled()
-    for pattern in s2a.secret_content_res:
-        if pattern.search(text):
+def _is_word_char(ch: str) -> bool:
+    return ch == "_" or ch.isalnum()
+
+
+def _has_word_prefixed_match(text: str, prefix: str, tail_re: re.Pattern[str]) -> bool:
+    pos = 0
+    step = len(prefix)
+    while True:
+        idx = text.find(prefix, pos)
+        if idx == -1:
+            return False
+        if (idx == 0 or not _is_word_char(text[idx - 1])) and tail_re.match(text, idx + step):
             return True
+        pos = idx + step
+
+
+def _has_hardcoded_secret(text: str, *, _zwsp_stripped: bool = False) -> bool:
+    s2a = _ensure_stage2a_compiled()
+    if not _zwsp_stripped:
+        text = _strip_zwsp(text, s2a)
+    if "-----BEGIN" in text and "PRIVATE KEY" in text and s2a.pem_key_re.search(text):
+        return True
+    if "AKIA" in text and _has_word_prefixed_match(text, "AKIA", s2a.akia_tail_re):
+        return True
+    if "sk-" in text:
+        word_hyphen = s2a.ascii_word_hyphen
+        for m in s2a.sk_search_re.finditer(text):
+            start = m.start()
+            if start == 0 or text[start - 1] not in word_hyphen:
+                return True
+    if "gh" in text:
+        gh_tail_re = s2a.gh_tail_re
+        for pfx in ("ghp_", "gho_", "ghu_", "ghs_"):
+            if pfx in text and _has_word_prefixed_match(text, pfx, gh_tail_re):
+                return True
+    if "github_pat_" in text and _has_word_prefixed_match(
+        text, "github_pat_", s2a.github_pat_tail_re
+    ):
+        return True
+    if "AIza" in text and _has_word_prefixed_match(text, "AIza", s2a.aiza_tail_re):
+        return True
+    if "AQ." in text:
+        pos = 0
+        aq_tail_re = s2a.aq_tail_re
+        word_hyphen = s2a.ascii_word_hyphen
+        while True:
+            idx = text.find("AQ.", pos)
+            if idx == -1:
+                break
+            if (idx == 0 or text[idx - 1] not in word_hyphen) and aq_tail_re.match(text, idx + 3):
+                return True
+            pos = idx + 3
     return False
 
 
@@ -1045,67 +1158,86 @@ def check_stage2a_deterministic_security(
     paths, commands, contents = _extract_tool_inputs(payload)
 
     decoded_cue_commands: list[str] = []
-    for cmd in commands:
-        if s2a.b64_cue_re.search(cmd):
-            collapsed_cmd = _unescape_and_collapse(cmd, s2a)
-            for b64_m in s2a.b64_token_re.finditer(collapsed_cmd):
-                dec = _decode_b64_token(b64_m.group(0), s2a.b64_map)
-                if dec is not None:
-                    decoded_cue_commands.append(dec)
+    cmd_b64_cache: dict[str, tuple[str, list[str]]] = {}
+    if commands:
+        b64_map = s2a.b64_map
+        for cmd in commands:
+            if s2a.b64_cue_re.search(cmd):
+                collapsed_cmd = _unescape_and_collapse(cmd, s2a)
+                b64_decoded: list[str] = []
+                for b64_m in s2a.b64_token_re.finditer(collapsed_cmd):
+                    dec = _decode_b64_token(b64_m.group(0), b64_map)
+                    if dec is not None:
+                        b64_decoded.append(dec)
+                decoded_cue_commands.extend(b64_decoded)
+                cmd_b64_cache[cmd] = (collapsed_cmd, b64_decoded)
 
-    # 1. Destructive filesystem commands (Rule 3)
-    for cmd in (*commands, *decoded_cue_commands):
-        if _is_destructive_command(cmd):
-            return _make_receipt(
-                rule_id="STAGE2A_DESTRUCTIVE_COMMAND",
-                remediation="Blocked destructive filesystem/disk wipe command.",
-                violated_path=None,
-            )
+        # 1. Destructive filesystem commands (Rule 3)
+        for cmd in (*commands, *decoded_cue_commands):
+            if _is_destructive_command(cmd):
+                return _make_receipt(
+                    rule_id="STAGE2A_DESTRUCTIVE_COMMAND",
+                    remediation="Blocked destructive filesystem/disk wipe command.",
+                    violated_path=None,
+                )
 
-    # 2. Force-push to main/master (Rule 4)
-    for cmd in (*commands, *decoded_cue_commands):
-        if _is_force_push_main(cmd):
-            return _make_receipt(
-                rule_id="STAGE2A_FORCE_PUSH_MAIN",
-                remediation=(
-                    "Push to a feature branch and open a pull request "
-                    "instead of force-pushing main/master."
-                ),
-                violated_path=None,
-            )
+        # 2. Force-push to main/master (Rule 4)
+        for cmd in (*commands, *decoded_cue_commands):
+            if _is_force_push_main(cmd):
+                return _make_receipt(
+                    rule_id="STAGE2A_FORCE_PUSH_MAIN",
+                    remediation=(
+                        "Push to a feature branch and open a pull request "
+                        "instead of force-pushing main/master."
+                    ),
+                    violated_path=None,
+                )
 
     ws_cache: list[tuple[str, str]] = []
 
     # 3. Secret exposure: .env access, outbound exfil, and hardcoded secrets (Rules 1 & 5)
     resolved_paths: list[tuple[str, bool]] = []
-    for raw_path in paths:
-        if _path_has_forbidden_env(raw_path):
-            return _make_receipt(
-                rule_id="INV_01_SECRET_EXPOSURE",
-                remediation=(
-                    "Do not read or write .env secret files; "
-                    "use runtime environment variables or .env.example."
-                ),
-                violated_path=raw_path,
-            )
-        ws_base, ws_norm = _get_ws_pair(workspace_root, ws_cache)
-        inside, resolved = _resolve_within_workspace(raw_path, ws_base, ws_norm)
-        if _resolved_has_forbidden_env(resolved, ws_base, inside):
-            return _make_receipt(
-                rule_id="INV_01_SECRET_EXPOSURE",
-                remediation=(
-                    "Do not read or write .env secret files; "
-                    "use runtime environment variables or .env.example."
-                ),
-                violated_path=raw_path,
-            )
-        resolved_paths.append((raw_path, inside))
+    if paths:
+        seen_paths: set[str] = set()
+        for raw_path in paths:
+            if raw_path in seen_paths:
+                continue
+            seen_paths.add(raw_path)
+            if _path_has_forbidden_env(raw_path):
+                return _make_receipt(
+                    rule_id="INV_01_SECRET_EXPOSURE",
+                    remediation=(
+                        "Do not read or write .env secret files; "
+                        "use runtime environment variables or .env.example."
+                    ),
+                    violated_path=raw_path,
+                )
+            ws_base, ws_norm = _get_ws_pair(workspace_root, ws_cache)
+            inside, resolved = _resolve_within_workspace(raw_path, ws_base, ws_norm)
+            if _resolved_has_forbidden_env(resolved, ws_base, inside):
+                return _make_receipt(
+                    rule_id="INV_01_SECRET_EXPOSURE",
+                    remediation=(
+                        "Do not read or write .env secret files; "
+                        "use runtime environment variables or .env.example."
+                    ),
+                    violated_path=raw_path,
+                )
+            resolved_paths.append((raw_path, inside))
 
     pending_cmd_escapes: list[str] = []
     for cmd in commands:
         env_tok = _command_has_forbidden_env(cmd)
         if env_tok is None:
-            env_tok = _command_has_obfuscated_env(cmd)
+            cached_b64 = cmd_b64_cache.get(cmd)
+            if cached_b64 is not None:
+                env_tok = _command_has_obfuscated_env(
+                    cmd,
+                    pre_collapsed=cached_b64[0],
+                    pre_b64_decoded=cached_b64[1],
+                )
+            else:
+                env_tok = _command_has_obfuscated_env(cmd)
         if env_tok is not None:
             return _make_receipt(
                 rule_id="INV_01_SECRET_EXPOSURE",
@@ -1126,7 +1258,7 @@ def check_stage2a_deterministic_security(
                 ),
                 violated_path=None,
             )
-        if _has_hardcoded_secret(cmd):
+        if _has_hardcoded_secret(cmd, _zwsp_stripped=True):
             return _make_receipt(
                 rule_id="INV_01_SECRET_EXPOSURE",
                 remediation="Remove hardcoded private keys or API tokens from shell commands.",
@@ -1156,16 +1288,21 @@ def check_stage2a_deterministic_security(
                 )
             pending_cmd_escapes.append(dec_escape[1])
 
-    for content_path, text in contents:
-        if _has_hardcoded_secret(text):
-            return _make_receipt(
-                rule_id="INV_01_SECRET_EXPOSURE",
-                remediation=(
-                    "Remove hardcoded private keys or API tokens; "
-                    "load credentials via environment variables."
-                ),
-                violated_path=content_path,
-            )
+    if contents:
+        seen_texts: set[str] = set()
+        for content_path, text in contents:
+            if text in seen_texts:
+                continue
+            seen_texts.add(text)
+            if _has_hardcoded_secret(text, _zwsp_stripped=True):
+                return _make_receipt(
+                    rule_id="INV_01_SECRET_EXPOSURE",
+                    remediation=(
+                        "Remove hardcoded private keys or API tokens; "
+                        "load credentials via environment variables."
+                    ),
+                    violated_path=content_path,
+                )
 
     # 4. Workspace cage containment (Rule 2)
     for raw_path, inside in resolved_paths:

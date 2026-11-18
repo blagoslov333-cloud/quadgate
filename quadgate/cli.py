@@ -902,7 +902,20 @@ def build_parser() -> argparse.ArgumentParser:
     doctor_p.add_argument("--json", action="store_true")
 
     bench_p = subparsers.add_parser("bench", help="Run reproducible A/B benchmark suite.")
-    bench_p.add_argument("--suite", choices=["coding", "knowledge", "all"], default="all")
+    bench_p.add_argument(
+        "--suite",
+        choices=[
+            "coding",
+            "knowledge",
+            "all",
+            "stress_long_context",
+            "stress_tool_cache_routing",
+            "stress_adversarial_resilience",
+            "stress_all",
+            "everything",
+        ],
+        default="all",
+    )
     bench_p.add_argument("--runs", type=int, default=1)
     bench_p.add_argument("--dry-replay", action="store_true")
     bench_p.add_argument("--live", action="store_true")

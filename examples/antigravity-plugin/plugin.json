@@ -1,0 +1,12 @@
+{
+  "name": "quadgate",
+  "displayName": "QuadGate 4-Gate Control Plane",
+  "version": "0.1.0",
+  "description": "4-gate discriminative control plane for Antigravity and Swarms: Pass-0 context sieve, Stage-2A/2B mutation firewall, ECC Swarm/subagent model router, and Stop truth-oracle audit.",
+  "logo": "assets/logo.svg",
+  "suggestedPrompts": [
+    "Check live QuadGate daemon health, active classifier driver, and gate telemetry",
+    "Audit a proposed Swarm worker roster with QuadGate Gate 3 ECC routing",
+    "Run QuadGate doctor and inspect workspace index coverage"
+  ]
+}

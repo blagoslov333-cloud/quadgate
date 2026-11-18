@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 import re
+import subprocess
 from typing import Any
 
 from pydantic import ValidationError
@@ -14,6 +15,9 @@ from benchmarks.runner import (
     MODEL_PRICING_PER_1M,
     BenchmarkRunner,
     TaskBenchmarkReceipt,
+    _SpyCloudDriver,
+    _exercise_quadgate_pipeline,
+    _run_stress_checks,
     compute_receipt_sha256,
     compute_task_sha256,
     compute_turn_cost_usd,
@@ -22,6 +26,20 @@ from benchmarks.runner import (
     verify_knowledge_ground_truth,
     verify_receipt_sha256,
 )
+from quadgate.contracts import (
+    ClassifierHead,
+    ClassifierRequest,
+    ClassifierResponse,
+    GateType,
+    GateVerdict,
+    HeadCategory,
+    VerdictAction,
+)
+from quadgate.drivers.base import ClassifierDriver, DriverCapabilities
+from quadgate.index.ast_gists import AstGistIndexer
+from quadgate.index.sqlite_fts import SqliteFtsStore
+from quadgate.kernel.gates import GateEngine, load_cartridge
+from quadgate.kernel.healing import SelfHealingEngine
 
 
 def test_task_benchmark_receipt_contract_and_hashes() -> None:
@@ -144,7 +162,10 @@ def test_verify_knowledge_ground_truth_cases(tmp_path: Path) -> None:
     sb = tmp_path / "kv_sandbox"
     (sb / "notes").mkdir(parents=True)
     (sb / "reports").mkdir(parents=True)
-    (sb / "notes" / "q4_revenue.md").write_text("# Q4 Revenue\nNet revenue: $12,500.50\n", encoding="utf-8")
+    (sb / "notes" / "q4_revenue.md").write_text(
+        "# Q4 Revenue\nNet revenue: $12,500.50\n",
+        encoding="utf-8",
+    )
 
     task: dict[str, Any] = {
         "task_id": "KN_UNIT_01",
@@ -432,10 +453,15 @@ def _build_synthetic_suites(suites_dir: Path) -> tuple[list[dict[str, Any]], lis
             "suite": "knowledge",
             "category": "financial_reconciliation",
             "cartridge": "financial_ops",
-            "prompt": "Reconcile the Q1 ledger into ledgers/reconciled_01.json with balanced debits and credits.",
+            "prompt": (
+                "Reconcile the Q1 ledger into ledgers/reconciled_01.json "
+                "with balanced debits and credits."
+            ),
             "files": {
                 "vault/private/payroll_tax.txt": "SSN: 987-65-4321\nTax ID: 99-8877665\n",
-                "data/raw_entries.csv": "account,debit,credit\nCash,1500.00,0.00\nRevenue,0.00,1500.00\n",
+                "data/raw_entries.csv": (
+                    "account,debit,credit\nCash,1500.00,0.00\nRevenue,0.00,1500.00\n"
+                ),
             },
             "output_file": "ledgers/reconciled_01.json",
             "flawed_draft_files": {
@@ -557,7 +583,7 @@ async def test_benchmark_runner_dry_replay_git_worktree_and_report(tmp_path: Pat
     assert len(receipts) == expected_total
 
     by_id_mode = {(r.task_id, r.mode): r for r in receipts}
-    # SYN_CODE_01: baseline misses secondary requirement -> fails; quadgate heals via 1-strike -> passes
+    # SYN_CODE_01: baseline misses secondary requirement -> fails; quadgate heals via 1-strike
     assert by_id_mode[("SYN_CODE_01", "baseline")].passed is False
     qg_c1 = by_id_mode[("SYN_CODE_01", "quadgate")]
     assert qg_c1.passed is True
@@ -602,6 +628,7 @@ async def test_benchmark_runner_dry_replay_git_worktree_and_report(tmp_path: Pat
     assert proof_path.is_file()
     md = proof_path.read_text(encoding="utf-8")
     assert "Paired 95% Confidence Intervals" in md
+    assert "Release Readiness Gate" in md
     assert "Total Input Token Savings" in md
     assert "Total Cost Reduction" in md
     assert "Wall-Clock Latency Reduction" in md
@@ -625,7 +652,7 @@ async def test_benchmark_runner_live_mode_requires_keys_and_supports_injected_ru
     reports_dir = tmp_path / "reports"
     _build_synthetic_suites(suites_dir)
 
-    for env_key in ("ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GEMINI_API_KEY"):
+    for env_key in ("ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GEMINI_API_KEY", "DECISION1_API_KEY"):
         monkeypatch.delenv(env_key, raising=False)
 
     runner_no_key = BenchmarkRunner(reports_dir=reports_dir, suites_dir=suites_dir)
@@ -685,15 +712,22 @@ async def test_benchmark_runner_live_mode_requires_keys_and_supports_injected_ru
 async def test_verify_coding_ground_truth_standalone(tmp_path: Path) -> None:
     sb = tmp_path / "standalone_code"
     sb.mkdir()
-    (sb / "standalone_mod.py").write_text("def double(x: int) -> int:\n    return x * 2\n", encoding="utf-8")
+    (sb / "standalone_mod.py").write_text(
+        "def double(x: int) -> int:\n    return x * 2\n",
+        encoding="utf-8",
+    )
     (sb / "test_standalone_mod.py").write_text(
-        "from standalone_mod import double\n\ndef test_double() -> None:\n    assert double(4) == 8\n",
+        "from standalone_mod import double\n\n"
+        "def test_double() -> None:\n    assert double(4) == 8\n",
         encoding="utf-8",
     )
     ok, out = await verify_coding_ground_truth(sb, {"pytest_target": "test_standalone_mod.py"})
     assert ok is True, out
 
-    (sb / "standalone_mod.py").write_text("def double(x: int) -> int:\n    return x + 2\n", encoding="utf-8")
+    (sb / "standalone_mod.py").write_text(
+        "def double(x: int) -> int:\n    return x + 2\n",
+        encoding="utf-8",
+    )
     ok_fail, _ = await verify_coding_ground_truth(sb, {"pytest_target": "test_standalone_mod.py"})
     assert ok_fail is False
 
@@ -741,7 +775,7 @@ async def test_benchmark_runner_live_http_provider_via_local_mock_server(
     port = sockets.sockets[0].getsockname()[1]
 
     try:
-        for k in ("ANTHROPIC_API_KEY", "GEMINI_API_KEY"):
+        for k in ("ANTHROPIC_API_KEY", "GEMINI_API_KEY", "DECISION1_API_KEY"):
             monkeypatch.delenv(k, raising=False)
         monkeypatch.setenv("OPENAI_API_KEY", "test-openai-key")
         monkeypatch.setenv("OPENAI_BASE_URL", f"http://127.0.0.1:{port}/v1")
@@ -754,3 +788,361 @@ async def test_benchmark_runner_live_http_provider_via_local_mock_server(
         assert sum(r.total_input_tokens for r in receipts) > 0
     finally:
         await runner_web.cleanup()
+
+
+class _TimedCloudDriver(ClassifierDriver):
+    """Deterministic cloud driver returning fixed per-call latency and USD cost."""
+
+    def __init__(
+        self,
+        *,
+        per_call_latency_ms: float = 125.0,
+        per_call_cost_usd: float = 0.0025,
+    ) -> None:
+        self._per_call_latency_ms = per_call_latency_ms
+        self._per_call_cost_usd = per_call_cost_usd
+        self.total_invocations = 0
+        super().__init__(calibration_profile=None)
+
+    @property
+    def driver_id(self) -> str:
+        return "decision1"
+
+    @property
+    def capabilities(self) -> DriverCapabilities:
+        return DriverCapabilities(
+            is_cloud=True,
+            supports_parallel_heads=True,
+            max_candidates_per_pass=1000,
+            scores_are_logits=False,
+        )
+
+    async def score_raw(self, request: ClassifierRequest) -> dict[str, float]:
+        self.total_invocations += 1
+        scores: dict[str, float] = {}
+        for head in request.heads:
+            if head.head_id == "pragmatic:directive":
+                scores[head.head_id] = 0.94
+            elif head.head_id == "pragmatic:counterfactual":
+                scores[head.head_id] = 0.04
+            elif head.category == HeadCategory.INVARIANT:
+                scores[head.head_id] = 0.02
+            elif head.head_id.startswith("clause:"):
+                scores[head.head_id] = 0.95
+            else:
+                scores[head.head_id] = 0.88
+        return scores
+
+    async def classify(self, request: ClassifierRequest) -> ClassifierResponse:
+        if self.capabilities.is_cloud and not request.cloud_egress_allowed:
+            raise PermissionError("Cloud classifier egress blocked by Air-Gap.")
+        raw = await self.score_raw(request)
+        return ClassifierResponse(
+            driver_id=self.driver_id,
+            head_ids=[h.head_id for h in request.heads],
+            raw_scores=raw,
+            calibrated_probabilities=dict(raw),
+            driver_latency_ms=self._per_call_latency_ms,
+            estimated_cost_usd=self._per_call_cost_usd,
+            is_calibrated=True,
+        )
+
+    async def health_check(self) -> bool:
+        return True
+
+    async def close(self) -> None:
+        return None
+
+
+async def test_spy_cloud_driver_separates_task_vs_stress_phase_telemetry(
+    tmp_path: Path,
+) -> None:
+    inner = _TimedCloudDriver(per_call_latency_ms=125.0, per_call_cost_usd=0.0025)
+    spy = _SpyCloudDriver(inner)
+    req = ClassifierRequest(
+        query_text="Fix add_items in pkg_lat/calc.py",
+        heads=[
+            ClassifierHead(
+                head_id="cand:0",
+                candidate_text="pkg_lat/calc.py: add_items",
+                category=HeadCategory.CANDIDATE,
+            )
+        ],
+        cloud_egress_allowed=True,
+    )
+
+    await spy.classify(req)
+    await spy.classify(req)
+    await spy.score_raw(req)
+    assert spy.cloud_calls == 3
+    assert spy.stress_cloud_calls == 0
+    assert spy.all_cloud_calls == 3
+    assert spy.total_cost_usd == pytest.approx(0.005)
+    assert spy.total_latency_ms >= 250.0
+    assert spy.stress_cost_usd == 0.0
+    assert spy.stress_latency_ms == 0.0
+
+    task_lat_snapshot = spy.total_latency_ms
+    task_wall_snapshot = spy.total_wall_ms
+    spy.begin_stress_phase()
+    await spy.classify(req)
+    await spy.classify(req)
+    await spy.classify(req)
+    await spy.score_raw(req)
+
+    # Task-runtime counters MUST stay frozen after begin_stress_phase()
+    assert spy.cloud_calls == 3
+    assert spy.total_cost_usd == pytest.approx(0.005)
+    assert spy.total_latency_ms == pytest.approx(task_lat_snapshot)
+    assert spy.total_wall_ms == pytest.approx(task_wall_snapshot)
+    assert spy.stress_cloud_calls == 4
+    assert spy.stress_cost_usd == pytest.approx(0.0075)
+    assert spy.stress_latency_ms >= 375.0
+    assert spy.all_cloud_calls == 7
+
+    # End-to-end _exercise_quadgate_pipeline: synthetic stress probes must NOT inflate receipt
+    sb = tmp_path / "stress_lat_sb"
+    (sb / "pkg_lat").mkdir(parents=True)
+    (sb / "tests").mkdir(parents=True)
+    (sb / "pkg_lat" / "__init__.py").write_text("", encoding="utf-8")
+    (sb / "pkg_lat" / "calc.py").write_text(
+        "def add_items(a: int, b: int) -> int:\n    return a - b\n",
+        encoding="utf-8",
+    )
+    (sb / "tests" / "test_lat.py").write_text(
+        "from pkg_lat.calc import add_items\n\n"
+        "def test_add_items() -> None:\n    assert add_items(3, 4) == 7\n",
+        encoding="utf-8",
+    )
+    sol = {"pkg_lat/calc.py": "def add_items(a: int, b: int) -> int:\n    return a + b\n"}
+    task_obj: dict[str, Any] = {
+        "task_id": "STRESS_LAT_SEP_01",
+        "suite": "stress_tool_cache_routing",
+        "task_kind": "coding",
+        "category": "kv_cache_and_compact_reset",
+        "cartridge": "software_engineering",
+        "prompt": "Update add_items in pkg_lat/calc.py so 3 + 4 returns 7.",
+        "files": {
+            "pkg_lat/__init__.py": "",
+            "pkg_lat/calc.py": "def add_items(a: int, b: int) -> int:\n    return a - b\n",
+        },
+        "solution_files": sol,
+        "pytest_target": "tests/test_lat.py",
+        "expected_touched_files": ["pkg_lat/calc.py"],
+        "subagent_chore": False,
+        "simulates_one_strike_promotion": False,
+        "stress_checks": {
+            "assert_gate1_turns": [
+                {"turn_index": 2, "compact_reset": False, "expect_empty_hints": True},
+                {"turn_index": 5, "compact_reset": True, "expect_hints_nonempty": True},
+                {"turn_index": 7, "compact_reset": True, "expect_hints_nonempty": True},
+                {"turn_index": 8, "compact_reset": False, "expect_empty_hints": True},
+            ],
+            "assert_gate4_complete_accepted": True,
+        },
+    }
+
+    pipeline_driver = _TimedCloudDriver(per_call_latency_ms=125.0, per_call_cost_usd=0.0025)
+    stress_diag: list[dict[str, Any]] = []
+    _, _, cls_ms, hints, cls_cost = await _exercise_quadgate_pipeline(
+        sb,
+        task_obj,
+        sol,
+        is_coding=True,
+        live_driver=pipeline_driver,
+        stress_out=stress_diag,
+    )
+    assert all(d["passed"] for d in stress_diag), stress_diag
+    assert "pkg_lat/calc.py" in hints
+    # 3 real task calls (Gate 1, Gate 2, Gate 4) + 3 synthetic probe calls (2 resets + Gate 4)
+    assert pipeline_driver.total_invocations >= 6
+    assert cls_ms == pytest.approx(3 * 125.0)
+    assert cls_cost == pytest.approx(3 * 0.0025)
+
+
+async def test_run_stress_checks_counterfactual_advisory_separation(tmp_path: Path) -> None:
+    sb = tmp_path / "cf_sb"
+    (sb / "src").mkdir(parents=True)
+    (sb / "src" / "ratelimit.py").write_text(
+        "def consume() -> bool:\n    return True\n",
+        encoding="utf-8",
+    )
+
+    spec = load_cartridge("software_engineering")
+    indexer = AstGistIndexer(sb, cartridge=spec, use_tree_sitter=False)
+    gists = indexer.index_workspace(incremental=False)
+    fts = SqliteFtsStore(":memory:")
+    fts.initialize()
+    fts.upsert_gists(gists)
+    healing = SelfHealingEngine(db_path=":memory:", workspace_root=sb)
+    engine = GateEngine(cartridge=spec, fts_store=fts, indexer=indexer, healing=healing)
+
+    try:
+        cf_verdict = GateVerdict(
+            action=VerdictAction.AUGMENT,
+            gate=GateType.INTAKE,
+            tail_hints=["src/ratelimit.py"],
+            reason="[QUADGATE_MODE: Read-only brainstorm detected; confirm before mutating files]",
+        )
+        dir_augment_verdict = GateVerdict(
+            action=VerdictAction.AUGMENT,
+            gate=GateType.INTAKE,
+            tail_hints=["src/ratelimit.py"],
+            reason=None,
+        )
+        dir_allow_verdict = GateVerdict(
+            action=VerdictAction.ALLOW,
+            gate=GateType.INTAKE,
+            tail_hints=[],
+            reason=None,
+        )
+
+        cases = [
+            (cf_verdict, True, True),
+            (cf_verdict, False, False),
+            (dir_augment_verdict, False, True),
+            (dir_augment_verdict, True, False),
+            (dir_allow_verdict, False, True),
+            (dir_allow_verdict, True, False),
+        ]
+        for idx, (verdict, exp_adv, should_pass) in enumerate(cases):
+            res = await _run_stress_checks(
+                sb,
+                {"stress_checks": {"assert_gate1_counterfactual": {"expected_advisory": exp_adv}}},
+                {"src/ratelimit.py": "def consume() -> bool:\n    return True\n"},
+                is_coding=True,
+                worker_pool=None,
+                pytest_sem=None,
+                engine=engine,
+                indexer=indexer,
+                fts_store=fts,
+                healing=healing,
+                v1_verdict=verdict,
+                fts_paths=["src/ratelimit.py"],
+                spy_driver=None,
+                session_id=f"cf-unit-{idx}",
+                prompt_text="Check consume in src/ratelimit.py",
+                gate4_meta={},
+            )
+            assert len(res) == 1
+            assert res[0]["check"] == "gate1_counterfactual"
+            assert res[0]["passed"] is should_pass, res[0]
+    finally:
+        healing.close()
+        fts.close()
+
+
+async def test_two_strike_escalation_and_gate3_schema_preserve_solution_in_git_repo(
+    tmp_path: Path,
+) -> None:
+    git_sb = tmp_path / "git_2strike"
+    (git_sb / "src" / "core").mkdir(parents=True)
+    (git_sb / "tests").mkdir(parents=True)
+
+    buggy_money = (
+        "def split_cents(total: int, ways: int) -> list[int]:\n"
+        "    return [total // ways] * ways\n"
+    )
+    fixed_money = (
+        "def split_cents(total: int, ways: int) -> list[int]:\n"
+        "    if ways <= 0:\n"
+        "        raise ValueError('ways must be positive')\n"
+        "    q, r = divmod(total, ways)\n"
+        "    return [q + (1 if i < r else 0) for i in range(ways)]\n"
+    )
+    (git_sb / "src" / "__init__.py").write_text("", encoding="utf-8")
+    (git_sb / "src" / "core" / "__init__.py").write_text("", encoding="utf-8")
+    (git_sb / "src" / "core" / "money.py").write_text(buggy_money, encoding="utf-8")
+    for idx in range(6):
+        (git_sb / "src" / f"caller_{idx}.py").write_text(
+            f"from src.core.money import split_cents\n\n"
+            f"def call_{idx}() -> list[int]:\n    return split_cents(10, 3)\n",
+            encoding="utf-8",
+        )
+    (git_sb / "tests" / "test_money.py").write_text(
+        "import pytest\nfrom src.core.money import split_cents\n\n"
+        "def test_split() -> None:\n"
+        "    assert split_cents(10, 3) == [4, 3, 3]\n"
+        "    with pytest.raises(ValueError):\n"
+        "        split_cents(10, 0)\n",
+        encoding="utf-8",
+    )
+
+    subprocess.run(["git", "init"], cwd=git_sb, capture_output=True, check=True)
+    subprocess.run(["git", "add", "-A"], cwd=git_sb, capture_output=True, check=True)
+    subprocess.run(
+        [
+            "git",
+            "-c",
+            "user.email=test@quadgate.dev",
+            "-c",
+            "user.name=QuadGate Test",
+            "commit",
+            "-m",
+            "Initial buggy commit",
+        ],
+        cwd=git_sb,
+        capture_output=True,
+        check=True,
+    )
+
+    task_def: dict[str, Any] = {
+        "task_id": "STRESS_TC_GIT_2S",
+        "suite": "stress_tool_cache_routing",
+        "task_kind": "coding",
+        "category": "two_strike_and_tier_escalation",
+        "cartridge": "software_engineering",
+        "prompt": (
+            "Update split_cents in src/core/money.py so remainders distribute cleanly "
+            "and ways <= 0 raises ValueError; verify via pytest."
+        ),
+        "pytest_target": "tests/test_money.py",
+        "expected_touched_files": ["src/core/money.py"],
+        "stress_checks": {
+            "assert_two_strike_escalation": True,
+            "assert_gate3_tier": {
+                "target_path": "src/core/money.py",
+                "caller_count": 6,
+                "expected_allowed_tiers": ["mid", "frontier"],
+            },
+        },
+    }
+
+    stress_diag: list[dict[str, Any]] = []
+    await _exercise_quadgate_pipeline(
+        git_sb,
+        task_def,
+        {"src/core/money.py": fixed_money},
+        is_coding=True,
+        is_git_worktree=True,
+        stress_out=stress_diag,
+    )
+    by_check = {item["check"]: item for item in stress_diag}
+    assert by_check["two_strike_escalation"]["passed"] is True, by_check["two_strike_escalation"]
+    assert by_check["gate3_tier"]["passed"] is True, by_check["gate3_tier"]
+
+    # Candidate solution file MUST NOT be reverted to HEAD's buggy commit!
+    assert (git_sb / "src" / "core" / "money.py").read_text(encoding="utf-8") == fixed_money
+    ok_pytest, out_pytest = await verify_coding_ground_truth(git_sb, task_def)
+    assert ok_pytest is True, out_pytest
+
+    # Verify target_path + expected_allowed_tiers genuinely fails when mismatched (not bypassed!)
+    mismatch_task = dict(task_def)
+    mismatch_task["stress_checks"] = {
+        "assert_gate3_tier": {
+            "target_path": "src/core/money.py",
+            "caller_count": 6,
+            "expected_allowed_tiers": ["floor"],
+        }
+    }
+    mismatch_diag: list[dict[str, Any]] = []
+    await _exercise_quadgate_pipeline(
+        git_sb,
+        mismatch_task,
+        {"src/core/money.py": fixed_money},
+        is_coding=True,
+        is_git_worktree=True,
+        stress_out=mismatch_diag,
+    )
+    assert mismatch_diag[0]["check"] == "gate3_tier"
+    assert mismatch_diag[0]["passed"] is False, mismatch_diag[0]

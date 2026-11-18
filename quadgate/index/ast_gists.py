@@ -14,6 +14,12 @@ from pathlib import Path
 from typing import Any, cast
 
 from quadgate.contracts import CartridgeSpec, IndexedGist
+from quadgate.index.sqlite_fts import (
+    check_text_air_gap,
+    is_sensitive_content,
+    is_sensitive_file,
+    is_sensitive_path,
+)
 
 _EXCLUDED_DIRS: frozenset[str] = frozenset(
     {
@@ -1086,16 +1092,31 @@ class AstGistIndexer:
             return "text"
         return _EXT_TO_LANG.get(lower_name[dot_idx:], "text")
 
-    def _is_private_tier1(self, rel_path: str) -> bool:
+    def _is_private_tier1(self, rel_path: str, data: bytes | None = None) -> bool:
         lower = rel_path.lower()
         basename = posixpath.basename(lower)
         if basename == ".env" or basename.startswith(".env."):
             if basename not in _SAFE_DOTENV_NAMES:
                 return True
+        if basename.endswith((".pem", ".key")) or basename in (
+            "id_rsa",
+            "id_ed25519",
+            "id_ecdsa",
+            "id_dsa",
+        ):
+            return True
         if "/" in lower:
             parts = lower.split("/")
             for seg in parts[:-1]:
-                if seg in ("secrets", "private_vault"):
+                if seg in (
+                    "secrets",
+                    "private_vault",
+                    "confidential",
+                    "privileged",
+                    "attorney_client",
+                    "payroll",
+                    "tax_ids",
+                ):
                     return True
             if "vault/private/" in lower or lower.startswith("vault/private/"):
                 return True
@@ -1106,7 +1127,59 @@ class AstGistIndexer:
                 if basename in _SAFE_DOTENV_NAMES and ".env*" in raw_glob:
                     continue
                 return True
+        if data is not None and data and b"\x00" not in data[:4096]:
+            head_text = data[:262_144].decode("utf-8", errors="ignore")
+            if is_sensitive_content(head_text, include_tags=False):
+                return True
         return False
+
+    def has_private_files(self) -> bool:
+        """Return True if any file in this workspace triggers Tier-1 privacy rules."""
+        if any(gist.is_private_tier1 for gist in self._gists_by_path.values()):
+            return True
+        if not self.workspace_root.exists():
+            return False
+        excluded_dirs = _EXCLUDED_DIRS
+        has_exclude_res = bool(self._exclude_res)
+        indexed = self._gists_by_path
+        stack: list[tuple[str, str]] = [(self._workspace_real, "")]
+        while stack:
+            abs_dir, rel_dir = stack.pop()
+            prefix = f"{rel_dir}/" if rel_dir else ""
+            try:
+                with os.scandir(abs_dir) as it:
+                    for entry in it:
+                        name = entry.name
+                        if entry.is_file(follow_symlinks=False):
+                            rel_path = prefix + name
+                            if has_exclude_res and self._is_excluded_path(rel_path, is_dir=False):
+                                continue
+                            if rel_path in indexed:
+                                continue
+                            if self._is_private_tier1(rel_path):
+                                return True
+                            if is_sensitive_file(entry.path, self._workspace_real):
+                                return True
+                        elif entry.is_dir(follow_symlinks=False):
+                            if name in excluded_dirs:
+                                continue
+                            sub_rel = prefix + name
+                            if has_exclude_res and self._is_excluded_path(sub_rel, is_dir=True):
+                                continue
+                            stack.append((entry.path, sub_rel))
+            except OSError:
+                continue
+        return False
+
+    def is_file_sensitive(self, file_path: Path | str) -> bool:
+        """Return True if file_path triggers Tier-1 privacy rules by path, glob, or content."""
+        rel_path = self._normalize_target_path(str(file_path))
+        if self._is_private_tier1(rel_path):
+            return True
+        candidate = Path(file_path)
+        if not candidate.is_absolute():
+            candidate = self.workspace_root / candidate
+        return is_sensitive_file(candidate, str(self.workspace_root))
 
     def _is_excluded_path(self, rel_path: str, is_dir: bool = False) -> bool:
         if is_dir:
@@ -1176,7 +1249,7 @@ class AstGistIndexer:
     ) -> _ParsedRecord:
         content_hash = hashlib.blake2b(data, digest_size=16).hexdigest()
         language = self._detect_language(rel_path)
-        is_private = self._is_private_tier1(rel_path)
+        is_private = self._is_private_tier1(rel_path, data)
         gist_text, symbols, raw_imports = self._extract_content(
             rel_path, language, data, is_private
         )
@@ -1688,4 +1761,10 @@ class AstGistIndexer:
         return min(1.0, len(impacted) / float(total_files - 1))
 
 
-__all__ = ["AstGistIndexer"]
+__all__ = [
+    "AstGistIndexer",
+    "check_text_air_gap",
+    "is_sensitive_content",
+    "is_sensitive_file",
+    "is_sensitive_path",
+]

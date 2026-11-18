@@ -22,7 +22,7 @@ FIREWALL_MATCHER = (
     "^(write_to_file|replace_file_content|multi_replace_file_content|"
     "write_file|edit_file|delete_file|run_command)$"
 )
-SUBAGENT_MATCHER = "^invoke_subagent$"
+SUBAGENT_MATCHER = "^(invoke_subagent|swarm)$"
 
 _INTAKE_COMMAND = "qg-shim --harness antigravity --gate intake"
 _FIREWALL_COMMAND = "qg-shim --harness antigravity --gate firewall"
@@ -119,13 +119,13 @@ def _infer_model_tier(value: Any) -> ModelTier | None:
         return direct_map[normalized]
 
     tokens = {tok for tok in _MODEL_TOKEN_SPLIT_RE.split(normalized) if tok}
-    if "flash" in tokens and "lite" in tokens:
+    if "flash" in tokens and ("lite" in tokens or "low" in tokens):
         return ModelTier.FLOOR
     if tokens & {"haiku", "mini", "nano"}:
         return ModelTier.FLOOR
-    if tokens & {"flash", "sonnet"}:
+    if tokens & {"flash", "sonnet"} or normalized == "gpt_oss_120b_medium":
         return ModelTier.MID
-    if tokens & {"pro", "opus"}:
+    if tokens & {"pro", "opus", "argon", "carbon", "hydrogen", "orchestrator"}:
         return ModelTier.FRONTIER
     return None
 
@@ -311,6 +311,17 @@ def _merge_hook_entries(
     return merged
 
 
+def _is_swarm_spawn(tool_name: str | None, tool_args: dict[str, Any]) -> bool:
+    """Return True when the tool call spawns a new subagent or Swarm worker."""
+    if tool_name == "invoke_subagent":
+        return True
+    if tool_name == "swarm":
+        raw_action = tool_args.get("action")
+        action = str(raw_action).strip().lower() if raw_action is not None else "add"
+        return action == "add"
+    return False
+
+
 class AntigravityAdapter(HarnessAdapter):
     """Adapter for Antigravity lifecycle hooks (`PreInvocation`, `PreToolUse`, `Stop`)."""
 
@@ -321,22 +332,22 @@ class AntigravityAdapter(HarnessAdapter):
     def infer_gate(self, raw_payload: dict[str, Any]) -> GateType:
         """Infer the canonical QuadGate lifecycle gate from an Antigravity hook payload."""
         hook_event = _first_str(raw_payload, "hookEventName", "hook_event_name")
-        tool_name, _, _ = _extract_tool_call(raw_payload)
+        tool_name, tool_args, _ = _extract_tool_call(raw_payload)
 
         if hook_event is not None:
-            if hook_event == "PreInvocation":
+            if hook_event in {"SessionStart", "PreInvocation"}:
                 return GateType.INTAKE
             if hook_event == "PreToolUse":
                 return (
                     GateType.SUBAGENT_GOVERNOR
-                    if tool_name == "invoke_subagent"
+                    if _is_swarm_spawn(tool_name, tool_args)
                     else GateType.FIREWALL
                 )
             if hook_event == "Stop":
                 return GateType.STOP_AUDIT
             raise ValueError(f"Unsupported Antigravity hookEventName: {hook_event!r}")
 
-        if tool_name == "invoke_subagent":
+        if _is_swarm_spawn(tool_name, tool_args):
             return GateType.SUBAGENT_GOVERNOR
         if tool_name is not None or isinstance(
             raw_payload.get("toolCall") or raw_payload.get("tool_call"),
@@ -432,6 +443,15 @@ class AntigravityAdapter(HarnessAdapter):
                     "description",
                     strip_value=False,
                 )
+                if tool_name == "swarm":
+                    swarm_tasks = _collect_string_list(tool_args.get("tasks"))
+                    if swarm_tasks:
+                        joined_tasks = "; ".join(swarm_tasks)
+                        prompt_text = (
+                            f"{prompt_text}\nTasks: {joined_tasks}"
+                            if prompt_text
+                            else f"Tasks: {joined_tasks}"
+                        )
 
             seen_touched = set(touched_files)
             for key in _TOUCHED_ARG_KEYS:
@@ -602,6 +622,79 @@ class AntigravityAdapter(HarnessAdapter):
             return 0, {"decision": "allow"}, ""
 
         return 0, {}, ""
+
+    def format_protojson_verdict(
+        self,
+        hook_event_name: str,
+        verdict: GateVerdict,
+        *,
+        tool_name: str | None = None,
+    ) -> dict[str, Any]:
+        """Convert a canonical `GateVerdict` into strict Antigravity 2.0 protojson stdout."""
+        event_norm = hook_event_name.strip()
+        if event_norm == "SessionStart":
+            return {}
+
+        if event_norm in {"PreInvocation", "PostInvocation"}:
+            if verdict.action == VerdictAction.BLOCK:
+                return {
+                    "injectSteps": [{"errorMessage": {"userMessage": _format_block_reason(verdict)}}],
+                    "terminationBehavior": "terminate",
+                }
+            if verdict.action == VerdictAction.AUGMENT:
+                parts: list[str] = []
+                if verdict.reason and verdict.reason.strip():
+                    parts.append(verdict.reason.strip())
+                hint_lines = [
+                    f"- {hint.strip()}"
+                    for hint in verdict.tail_hints
+                    if isinstance(hint, str) and hint.strip()
+                ]
+                if hint_lines:
+                    parts.append("[QUADGATE_CONTEXT_HINTS]\n" + "\n".join(hint_lines))
+                injected_text = "\n".join(parts)
+                if not injected_text:
+                    return {}
+                return {
+                    "injectSteps": [{"systemMessage": {"systemMessage": injected_text}}],
+                }
+            return {}
+
+        if event_norm == "PreToolUse":
+            if verdict.action in {VerdictAction.BLOCK, VerdictAction.PROMOTE}:
+                reason = (
+                    _format_block_reason(verdict)
+                    if verdict.action == VerdictAction.BLOCK
+                    else (verdict.reason or "Promote subagent tier.")
+                )
+                return {"decision": "deny", "reason": reason}
+            if verdict.action == VerdictAction.MODIFY:
+                overwrite_args = dict(verdict.updated_tool_args or {})
+                model_key = "model" if tool_name == "swarm" else "Model"
+                if verdict.updated_model:
+                    overwrite_args[model_key] = verdict.updated_model
+                if tool_name == "swarm":
+                    overwrite_args.pop("Model", None)
+                out: dict[str, Any] = {
+                    "decision": "allow",
+                    "overwrite": overwrite_args,
+                }
+                if verdict.reason and verdict.reason.strip():
+                    out["reason"] = verdict.reason.strip()
+                return out
+            return {"decision": "allow"}
+
+        if event_norm == "Stop":
+            if verdict.action in {VerdictAction.BLOCK, VerdictAction.PROMOTE} or (
+                verdict.action == VerdictAction.AUGMENT and verdict.unaddressed_clauses
+            ):
+                return {
+                    "decision": "continue",
+                    "reason": _format_stop_reason(verdict),
+                }
+            return {}
+
+        return {}
 
     def install_hooks(self, workspace_root: Path) -> Path:
         """Create or safely merge QuadGate hooks into `<workspace_root>/.agents/hooks.json`."""

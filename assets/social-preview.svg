@@ -36,7 +36,7 @@
 
   <!-- Accent Pill Badge (#238636) -->
   <rect x="148" y="368" width="820" height="62" rx="31" fill="#238636" />
-  <text x="558" y="407" text-anchor="middle" fill="#FFFFFF" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="24" font-weight="700">76.9% Lower Cost • 78.0% Faster • 100% Pass@1</text>
+  <text x="558" y="407" text-anchor="middle" fill="#FFFFFF" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="24" font-weight="700">76.9% Lower Cost • 3.95x Faster • 100% Pass@1</text>
 
   <!-- Minimal 4-Gate Visual Indicator Bars (zero extra words) -->
   <g transform="translate(148, 476)">

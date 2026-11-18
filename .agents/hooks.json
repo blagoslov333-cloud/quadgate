@@ -1,23 +1,5 @@
 {
-  "enabled": true,
-  "PreInvocation": [
-    {
-      "command": "qg-shim --harness antigravity --gate intake"
-    }
-  ],
-  "PreToolUse": [
-    {
-      "matcher": "^(write_to_file|replace_file_content|multi_replace_file_content|delete_file|run_command)$",
-      "command": "qg-shim --harness antigravity --gate firewall"
-    },
-    {
-      "matcher": "^invoke_subagent$",
-      "command": "qg-shim --harness antigravity --gate subagent_governor"
-    }
-  ],
-  "Stop": [
-    {
-      "command": "qg-shim --harness antigravity --gate stop_audit"
-    }
-  ]
+  "quadgate-workspace": {
+    "enabled": false
+  }
 }

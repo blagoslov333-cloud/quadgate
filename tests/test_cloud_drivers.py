@@ -760,3 +760,59 @@ async def test_logprob_fallback_edge_cases_and_concurrent_token_isolation(
         )
     with pytest.raises(ValueError, match="at most 64"):
         await driver.classify(ClassifierRequest(query_text="too many", heads=_make_heads(65)))
+
+
+async def test_decision1_gemini_decisions_mode_payload_answers_and_usage(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("DECISION1_API_KEY", "AIza-fake-gemini-key")
+    captured: list[tuple[str, str, dict[str, str], dict[str, Any] | None]] = []
+
+    async def transport(
+        method: str,
+        url: str,
+        headers: dict[str, str],
+        body: dict[str, Any] | None,
+        timeout_s: float,
+    ) -> tuple[int, dict[str, Any]]:
+        captured.append((method, url, headers, body))
+        if method == "GET":
+            return 200, {"name": "models/gemini-decision-1"}
+        assert body is not None
+        assert body["model"] == "gemini-decision-1"
+        assert body["input"] == "Fix JWT leeway bug"
+        assert "slot_1" in body["questions"]
+        assert "slot_161" in body["questions"]
+        return 200, {
+            "answers": {
+                "slot_1": {"type": "noul", "noul": 0.02, "confidence": 0.98},
+                "slot_161": {"type": "noul", "noul": 0.95, "confidence": 0.95},
+            },
+            "usage": {"total_input_tokens": 200, "total_output_tokens": 0, "total_tokens": 200},
+        }
+
+    driver = Decision1Driver(
+        endpoint="https://generativelanguage.googleapis.com/v1beta/decisions",
+        transport=transport,
+    )
+    heads = [
+        ClassifierHead(
+            head_id="INV_01_SECRET_EXPOSURE",
+            candidate_text="Never expose secrets",
+            category=HeadCategory.INVARIANT,
+        ),
+        ClassifierHead(
+            head_id="cand:0",
+            candidate_text="auth/jwt.py",
+            category=HeadCategory.CANDIDATE,
+        ),
+    ]
+    resp = await driver.classify(ClassifierRequest(query_text="Fix JWT leeway bug", heads=heads))
+    assert resp.raw_scores["INV_01_SECRET_EXPOSURE"] == pytest.approx(0.02)
+    assert resp.raw_scores["cand:0"] == pytest.approx(0.95)
+    assert resp.tokens_used == 200
+    assert resp.estimated_cost_usd == pytest.approx(200 * 0.10 / 1_000_000.0)
+    assert captured[0][1] == "https://generativelanguage.googleapis.com/v1beta/decisions"
+    assert captured[0][2]["x-goog-api-key"] == "AIza-fake-gemini-key"
+    assert await driver.health_check() is True
+    assert captured[-1][1] == "https://generativelanguage.googleapis.com/v1beta/models/gemini-decision-1"

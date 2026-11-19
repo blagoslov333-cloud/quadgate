@@ -407,7 +407,7 @@ def _cmd_daemon_start(ns: argparse.Namespace) -> int:
         "stdin": subprocess.DEVNULL,
         "close_fds": True,
     }
-    if os.name == "nt":
+    if sys.platform == "win32":
         popen_kwargs["creationflags"] = (
             subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
         )

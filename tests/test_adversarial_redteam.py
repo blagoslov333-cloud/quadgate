@@ -705,6 +705,7 @@ async def test_pass0_roundtrip_latency_40_sequential_under_25ms_p95(
     monkeypatch.setenv("QUADGATE_DAEMON_HOST", "127.0.0.1")
     monkeypatch.setenv("QUADGATE_DAEMON_PORT", str(daemon.bound_port))
     monkeypatch.setenv("QUADGATE_TOKEN_PATH", str(daemon.token_path))
+    monkeypatch.setenv("QUADGATE_SHIM_TIMEOUT_MS", "2000")
 
     def _call_shim_quiet(raw_payload: str) -> tuple[int, str, float]:
         buf = io.StringIO()
@@ -744,7 +745,10 @@ async def test_pass0_roundtrip_latency_40_sequential_under_25ms_p95(
             )
             rc, out, dt_ms = await asyncio.to_thread(_call_shim_quiet, req_json)
             assert rc == 0
-            assert "jwt_validator.py" in out
+            assert "jwt_validator.py" in out, (
+                f"Pass-0 iteration idx={idx} failed open or missed hint "
+                f"(dt_ms={dt_ms:.2f}, out={out!r})"
+            )
             latencies_ms.append(dt_ms)
 
         ordered = sorted(latencies_ms)

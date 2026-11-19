@@ -1426,7 +1426,7 @@ def forward_to_daemon(
         f"\r\n"
     ).encode("ascii") + body_bytes
 
-    connect_timeout = min(effective_timeout, 0.280)
+    connect_timeout = min(effective_timeout, max(0.280, effective_timeout * 0.6))
     live_key = (resolved_host, resolved_port, token_mtime_ns)
     use_fast_loopback = (
         os.name == "nt"

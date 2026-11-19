@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "quadgate"
-version = "0.1.0"
+version = "0.1.1"
 description = "Model-agnostic & harness-agnostic 4-gate discriminative kernel for AI coding and knowledge agents"
 readme = "README.md"
 license = { text = "Apache-2.0" }

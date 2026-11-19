@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any
 
 PLUGIN_NAME = "quadgate"
-PLUGIN_VERSION = "0.1.0"
+PLUGIN_VERSION = "0.1.1"
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 

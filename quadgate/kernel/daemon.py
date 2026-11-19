@@ -44,7 +44,7 @@ from quadgate.kernel.calibration import CalibrationEngine
 from quadgate.kernel.gates import GateEngine, ThresholdConfig, TierModelConfig
 from quadgate.kernel.healing import SelfHealingEngine
 
-DAEMON_VERSION = "0.1.0"
+DAEMON_VERSION = "0.1.1"
 _CARTRIDGES_DIR = Path(__file__).resolve().parent.parent / "cartridges"
 _DEFAULT_LATENCY_WINDOW = 10_000
 

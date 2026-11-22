@@ -5,20 +5,20 @@ from __future__ import annotations
 import asyncio
 import json
 import os
-from pathlib import Path
 import subprocess
 import sys
 import threading
 import time
+from pathlib import Path
 from typing import Any
 
 import aiohttp
 import pytest
 
-from quadgate.cli import _is_pid_alive, main as cli_main
+from quadgate.cli import _is_pid_alive
+from quadgate.cli import main as cli_main
 from quadgate.contracts import GateEvent, GateType, HarnessType, IndexedGist
 from quadgate.index.ast_gists import _EXCLUDED_DIRS, AstGistIndexer, _read_bytes
-from quadgate.index.sqlite_fts import SqliteFtsStore
 from quadgate.kernel.daemon import DaemonConfig, QuadGateDaemon, _workspace_hash_for_path
 from quadgate.kernel.gates import load_cartridge
 
@@ -217,8 +217,7 @@ async def test_concurrent_turn1_intake_deduplicates_resync_and_keeps_health_fast
             with counter_lock:
                 active_calls += 1
                 total_index_calls += 1
-                if active_calls > max_concurrent_calls:
-                    max_concurrent_calls = active_calls
+                max_concurrent_calls = max(max_concurrent_calls, active_calls)
             try:
                 time.sleep(0.18)
                 return real_index_ws(incremental=incremental)

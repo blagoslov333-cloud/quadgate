@@ -317,7 +317,7 @@ def test_neon_model_names_infer_frontier_tier() -> None:
     assert ev.current_tier == ModelTier.FRONTIER
 
     ns: dict[str, Any] = {}
-    exec(_HOOK_SCRIPT_PY, ns)
+    exec(_HOOK_SCRIPT_PY, ns)  # noqa: S102
     infer_stdlib = ns["_infer_tier_stdlib"]
     assert infer_stdlib("Orchestrator (Neon)") == "frontier"
     assert infer_stdlib("Gemini 4 Neon") == "frontier"

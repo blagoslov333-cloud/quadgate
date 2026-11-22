@@ -6,8 +6,6 @@ import asyncio
 import time
 from unittest.mock import patch
 
-import pytest
-
 from quadgate.contracts import ClassifierHead, ClassifierRequest, HeadCategory
 from quadgate.drivers.onnx_local import (
     ZeroDepDriver,

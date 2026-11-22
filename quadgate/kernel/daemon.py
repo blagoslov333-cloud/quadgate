@@ -350,6 +350,7 @@ class QuadGateDaemon:
         self.bound_port: int = self.config.port
         self._auth_token: str | None = None
         self._wrote_token: bool = False
+        self._wrote_state: bool = False
         self._started_at_iso: str | None = None
         self._started_monotonic: float | None = None
         self._last_activity_monotonic: float = time.monotonic()
@@ -731,8 +732,8 @@ class QuadGateDaemon:
             self._fts_store.initialize()
             self._fts_initialized = True
             self._auth_token = secrets.token_urlsafe(32)
-            _atomic_write_text(self.token_path, self._auth_token + "\n", mode=0o600)
-            self._wrote_token = True
+            self._wrote_token = False
+            self._wrote_state = False
 
             app = web.Application()
             app.router.add_post("/v1/evaluate", self._http_evaluate)
@@ -747,10 +748,10 @@ class QuadGateDaemon:
                 await site.start()
             except Exception:
                 await runner.cleanup()
-                if self._wrote_token:
-                    self.token_path.unlink(missing_ok=True)
-                    self._wrote_token = False
                 raise
+
+            _atomic_write_text(self.token_path, self._auth_token + "\n", mode=0o600)
+            self._wrote_token = True
 
             self._runner = runner
             self._site = site
@@ -783,6 +784,7 @@ class QuadGateDaemon:
                 json.dumps(state_payload, indent=2) + "\n",
                 mode=0o600,
             )
+            self._wrote_state = True
 
             self._idle_task = asyncio.create_task(self._idle_monitor_loop())
 
@@ -840,7 +842,9 @@ class QuadGateDaemon:
                 with contextlib.suppress(Exception):
                     await self.driver.close()
 
-            self.state_path.unlink(missing_ok=True)
+            if self._wrote_state:
+                self.state_path.unlink(missing_ok=True)
+                self._wrote_state = False
             if self._wrote_token and self._auth_token is not None:
                 try:
                     if self.token_path.is_file():

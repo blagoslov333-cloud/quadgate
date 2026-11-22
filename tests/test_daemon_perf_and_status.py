@@ -356,3 +356,26 @@ def test_cli_status_degraded_when_pid_alive_and_stopped_when_pid_dead(
     stop_out = json.loads(capsys.readouterr().out)
     assert stop_out["status"] == "stopped"
     assert stop_out["stale_state"] is True
+
+
+async def test_daemon_port_conflict_does_not_clobber_live_token_or_state(tmp_path: Path) -> None:
+    """A duplicate daemon failing to bind an occupied port must preserve the live token and state."""
+    home_dir = tmp_path / "qg_home"
+    primary = QuadGateDaemon(DaemonConfig(host="127.0.0.1", port=0), home_dir=home_dir)
+    await primary.start()
+    try:
+        orig_token = primary.token_path.read_text(encoding="utf-8")
+        orig_state = primary.state_path.read_text(encoding="utf-8")
+
+        duplicate = QuadGateDaemon(
+            DaemonConfig(host="127.0.0.1", port=primary.bound_port),
+            home_dir=home_dir,
+        )
+        with pytest.raises(OSError):
+            await duplicate.start()
+        await duplicate.stop()
+
+        assert primary.token_path.read_text(encoding="utf-8") == orig_token
+        assert primary.state_path.read_text(encoding="utf-8") == orig_state
+    finally:
+        await primary.stop()

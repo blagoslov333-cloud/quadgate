@@ -336,10 +336,22 @@ async def _cmd_init(ns: argparse.Namespace) -> int:
     return 0
 
 
+def _resolve_daemon_config_path(raw_config: str, home_dir: Path | None = None) -> Path | None:
+    """Resolve explicit --config path, falling back to `~/.quadgate/config.toml` when default."""
+    cfg_path = Path(raw_config)
+    if cfg_path.is_file():
+        return cfg_path
+    if raw_config == "quadgate.toml":
+        home_cfg = resolve_quadgate_home(home_dir) / "config.toml"
+        if home_cfg.is_file():
+            return home_cfg
+    return None
+
+
 async def _run_daemon_foreground(ns: argparse.Namespace) -> int:
-    config_path = Path(ns.config)
+    config_path = _resolve_daemon_config_path(str(ns.config))
     daemon = QuadGateDaemon.from_toml(
-        config_path if config_path.is_file() else None,
+        config_path,
         host=getattr(ns, "host", None),
         port=getattr(ns, "port", None),
         idle_shutdown_minutes=getattr(ns, "idle_minutes", None),
@@ -402,8 +414,8 @@ def _cmd_daemon_start(ns: argparse.Namespace) -> int:
     home_dir.mkdir(parents=True, exist_ok=True)
     log_path = home_dir / "daemon.log"
 
-    cfg_path = Path(str(ns.config))
-    resolved_cfg = str(cfg_path.resolve()) if cfg_path.is_file() else str(ns.config)
+    cfg_path = _resolve_daemon_config_path(str(ns.config), home_dir)
+    resolved_cfg = str(cfg_path.resolve()) if cfg_path is not None else str(ns.config)
     cmd = [
         sys.executable,
         "-m",

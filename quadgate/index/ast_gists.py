@@ -1184,8 +1184,13 @@ class AstGistIndexer:
             excluded_dirs = _EXCLUDED_DIRS
             has_exclude_res = bool(self._exclude_res)
             indexed = self._gists_by_path
-            isjunction = getattr(os.path, "isjunction", None)
-            visited_dirs: set[str] = {self._workspace_real_norm}
+            visited_inodes: set[tuple[int, int]] = set()
+            try:
+                root_st = os.stat(self._workspace_real)
+                if root_st.st_ino:
+                    visited_inodes.add((root_st.st_dev, root_st.st_ino))
+            except OSError:
+                pass
             stack: list[tuple[str, str]] = [(self._workspace_real, "")]
             while stack:
                 abs_dir, rel_dir = stack.pop()
@@ -1194,11 +1199,6 @@ class AstGistIndexer:
                     with os.scandir(abs_dir) as it:
                         for entry in it:
                             name = entry.name
-                            try:
-                                if entry.is_symlink():
-                                    continue
-                            except OSError:
-                                continue
                             if entry.is_file(follow_symlinks=False):
                                 rel_path = prefix + name
                                 if has_exclude_res and self._is_excluded_path(rel_path, is_dir=False):
@@ -1215,16 +1215,18 @@ class AstGistIndexer:
                                 sub_rel = prefix + name
                                 if has_exclude_res and self._is_excluded_path(sub_rel, is_dir=True):
                                     continue
-                                if isjunction is not None:
-                                    try:
-                                        if isjunction(entry.path):
-                                            continue
-                                    except OSError:
-                                        continue
-                                sub_real_norm = os.path.normcase(os.path.realpath(entry.path))
-                                if sub_real_norm in visited_dirs:
+                                try:
+                                    st = entry.stat(follow_symlinks=False)
+                                except OSError:
                                     continue
-                                visited_dirs.add(sub_real_norm)
+                                # Skip Windows junctions/reparse points (0x0400) and inode cycles without extra syscalls.
+                                if getattr(st, "st_file_attributes", 0) & 0x0400:
+                                    continue
+                                if st.st_ino:
+                                    dir_key = (st.st_dev, st.st_ino)
+                                    if dir_key in visited_inodes:
+                                        continue
+                                    visited_inodes.add(dir_key)
                                 stack.append((entry.path, sub_rel))
                 except OSError:
                     continue
@@ -1712,19 +1714,21 @@ class AstGistIndexer:
             has_exclude_res = bool(self._exclude_res)
             supported_exts = _SUPPORTED_EXTS
             simple_exts = self._simple_include_exts if has_include_res else supported_exts
-            isjunction = getattr(os.path, "isjunction", None)
 
             seen_paths: list[str] = []
             pending_parse: list[tuple[str, str, int]] = []
             new_dir_mtimes: dict[str, int] = {}
             any_changed = False
 
+            visited_inodes: set[tuple[int, int]] = set()
             try:
-                new_dir_mtimes[""] = os.stat(self._workspace_real).st_mtime_ns
+                root_st = os.stat(self._workspace_real)
+                new_dir_mtimes[""] = root_st.st_mtime_ns
+                if root_st.st_ino:
+                    visited_inodes.add((root_st.st_dev, root_st.st_ino))
             except OSError:
                 pass
 
-            visited_dirs: set[str] = {self._workspace_real_norm}
             stack: list[tuple[str, str]] = [(self._workspace_real, "")]
             while stack:
                 abs_dir, rel_dir = stack.pop()
@@ -1733,11 +1737,6 @@ class AstGistIndexer:
                     with os.scandir(abs_dir) as it:
                         for entry in it:
                             name = entry.name
-                            try:
-                                if entry.is_symlink():
-                                    continue
-                            except OSError:
-                                continue
                             if entry.is_file(follow_symlinks=False):
                                 if simple_exts is not None:
                                     dot_idx = name.rfind(".")
@@ -1776,22 +1775,19 @@ class AstGistIndexer:
                                     sub_rel, is_dir=True
                                 ):
                                     continue
-                                if isjunction is not None:
-                                    try:
-                                        if isjunction(entry.path):
-                                            continue
-                                    except OSError:
-                                        continue
-                                sub_real_norm = os.path.normcase(os.path.realpath(entry.path))
-                                if sub_real_norm in visited_dirs:
-                                    continue
-                                visited_dirs.add(sub_real_norm)
                                 try:
-                                    new_dir_mtimes[sub_rel] = entry.stat(
-                                        follow_symlinks=False
-                                    ).st_mtime_ns
+                                    st = entry.stat(follow_symlinks=False)
                                 except OSError:
-                                    pass
+                                    continue
+                                # Skip Windows junctions/reparse points (0x0400) and inode cycles without extra syscalls.
+                                if getattr(st, "st_file_attributes", 0) & 0x0400:
+                                    continue
+                                if st.st_ino:
+                                    dir_key = (st.st_dev, st.st_ino)
+                                    if dir_key in visited_inodes:
+                                        continue
+                                    visited_inodes.add(dir_key)
+                                new_dir_mtimes[sub_rel] = st.st_mtime_ns
                                 stack.append((entry.path, sub_rel))
                 except OSError:
                     continue

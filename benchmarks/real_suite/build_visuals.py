@@ -301,8 +301,8 @@ def render_wide_banner_svg(payload: dict[str, Any]) -> str:
             )
             accent = "#38BDF8"
         else:
-            b_val = f"{mc['base_pass']:.1f}%" if mc["base_pass"] is not None else "Pending"
-            stat_line = f"Baseline Pass@1: {b_val} (+QG pending)"
+            b_label = f"{mc['base_pass']:.1f}%" if mc["base_pass"] is not None else "Pending"
+            stat_line = f"Baseline Pass@1: {b_label} (+QG pending)"
             cost_line = f"{_fmt_usd(mc['base_cost'] or 0.0)}"
             accent = "#64748B"
         if compact:

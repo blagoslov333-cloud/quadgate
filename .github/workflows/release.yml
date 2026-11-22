@@ -33,7 +33,9 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create "${GITHUB_REF_NAME}" dist/* \
+          shopt -s nullglob
+          PDF_ASSETS=(benchmarks/reports/quadgate_*_executive_summary.pdf)
+          gh release create "${GITHUB_REF_NAME}" dist/* "${PDF_ASSETS[@]}" \
             --verify-tag \
             --title "QuadGate ${GITHUB_REF_NAME}" \
             --generate-notes

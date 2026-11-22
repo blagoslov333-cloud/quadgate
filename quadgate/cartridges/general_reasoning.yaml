@@ -1,0 +1,22 @@
+name: general_reasoning
+version: "1.0"
+context_unit:
+  indexer: markdown_sections
+  include_globs: ["**/*.md", "**/*.json", "**/*.txt"]
+  exclude_globs: ["**/.git/**"]
+  private_tier1_globs: ["**/.env*", "**/secrets/**"]
+
+mutation_tools:
+  - write_to_file
+  - Write
+
+invariants:
+  - id: INV_GEN_01_SECRET_EXPOSURE
+    gist: "Never expose private keys, credentials, or environment secrets in reasoning answers."
+    remediation: "Redact or omit secrets and sensitive environment tokens from generated outputs."
+
+truth_oracle:
+  timeout_ms: 500
+  checks:
+    - "verify_valid_json_answer"
+  check_clause_completeness: false

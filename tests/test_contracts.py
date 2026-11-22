@@ -320,7 +320,7 @@ async def test_classifier_driver_abc_airgap_and_budget() -> None:
 
 def test_cartridges_gold_dataset_and_example_toml_parse() -> None:
     cartridge_files = sorted((REPO_ROOT / "quadgate" / "cartridges").glob("*.yaml"))
-    assert len(cartridge_files) == 4
+    assert len(cartridge_files) == 5
     for path in cartridge_files:
         raw = yaml.safe_load(path.read_text(encoding="utf-8"))
         spec = CartridgeSpec.model_validate(raw)

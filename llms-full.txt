@@ -3,7 +3,7 @@
 > Model-agnostic 4-gate control plane for Claude Code, Antigravity, Codex CLI & MCP that preserves KV caches to cut LLM cost by 76.9% and latency by 78.0%.
 
 - **Repository:** https://github.com/blagoslov333-cloud/quadgate
-- **Package:** `quadgate` (`v0.1.1`, Python `>=3.11`, License: `Apache-2.0`)
+- **Package:** `quadgate` (`v0.1.2`, Python `>=3.11`, License: `Apache-2.0`)
 - **CLI Entrypoints:** `quadgate` (`quadgate.cli:main`) and `qg-shim` (`quadgate.shim:main`)
 - **Verified Empirical A/B Proof (`benchmarks/reports/LATEST_PROOF.md`, 35 paired tasks / 70 receipts):**
   - `Pass@1`: `88.6%` baseline -> `100.0%` QuadGate (`+11.4 pp`)
@@ -248,7 +248,7 @@ All models use Pydantic `BaseModel` with `ConfigDict(extra="forbid")`.
 
 ### `QuadGateDaemon` (`127.0.0.1:8787`)
 Protected by `Authorization: Bearer <token>` read from `~/.quadgate/run.token`:
-- `GET /v1/health`: Returns `{"status": "ok", "version": "0.1.1", "port": ..., "active_driver": ..., "active_cartridge": ..., "uptime_s": ...}`
+- `GET /v1/health`: Returns `{"status": "ok", "version": "0.1.2", "port": ..., "active_driver": ..., "active_cartridge": ..., "uptime_s": ...}`
 - `POST /v1/evaluate`: Validates JSON as `GateEvent`, dispatches through `GateEngine`, returns serialized `GateVerdict`.
 - `GET /v1/stats`: Returns request count, `mean_latency_ms`, `p50_latency_ms`, `p95_latency_ms`, `verdict_breakdown`, `gate_breakdown`, `workspaces_active`, and `self_healing` metrics.
 - `POST /v1/shutdown`: Gracefully flushes SQLite connections and shuts down daemon.

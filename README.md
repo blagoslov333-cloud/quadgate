@@ -22,7 +22,7 @@ QuadGate is an open-source 4-gate discriminative control plane for AI coding and
 It runs as a persistent localhost daemon (`127.0.0.1:8787`), cold-session reverse proxy (`127.0.0.1:8788`), and zero-dependency `< 450 ms` hook shim (`qg-shim`) across **Antigravity** (including native Swarms), **Claude Code**, **OpenAI Codex CLI**, and **MCP** clients without spending output tokens on generative critics.
 
 <p align="center">
-  <img src="assets/social-preview.png" alt="QuadGate Speed, Cost Savings & Efficiency Summary" width="820" />
+  <img src="assets/social-preview.png" alt="QuadGate v0.1.2 Live Benchmark Summary — -62.1% KV Spend, 3.1x Speed, 100% Attack Defense" width="820" />
 </p>
 
 <p align="center">
@@ -33,13 +33,25 @@ It runs as a persistent localhost daemon (`127.0.0.1:8787`), cold-session revers
 
 ## Reproducible Benchmarks
 
-### Live Multi-Model API Benchmark (`428` SHA-256 Receipts, Zero Synthetic Traces)
+### Live Multi-Model API Benchmark (`v0.1.2` · `1,293` SHA-256 Receipts, Zero Synthetic Traces)
 
-Full live-API results across `8` foundation models (`$9.42` total real API spend, `$0.0279` Decision 1 classifier spend, thinking tokens billed at full output rate) are published in [`benchmarks/reports/REAL_BENCHMARK_REPORT.md`](benchmarks/reports/REAL_BENCHMARK_REPORT.md) with raw SHA-256 receipts in [`benchmarks/reports/real_live_results.jsonl`](benchmarks/reports/real_live_results.jsonl):
+Full live-API telemetry across `1,007` baseline receipts ([`benchmarks/reports/real_live_results.jsonl`](benchmarks/reports/real_live_results.jsonl)) and `286` patched `v0.1.2` verification receipts ([`benchmarks/reports/real_live_v012_verify.jsonl`](benchmarks/reports/real_live_v012_verify.jsonl), `259/259` `pytest` checks passing, `0` SHA-256 errors) is summarized in our [**1-Page Executive Brief PDF**](benchmarks/reports/quadgate_v012_executive_summary.pdf) ([HTML version](benchmarks/reports/quadgate_v012_executive_summary.html)) alongside calibrated `20k`-trial Gate-3 priors ([`benchmarks/reports/gate3_calibrated_priors.json`](benchmarks/reports/gate3_calibrated_priors.json)) and [`benchmarks/reports/REAL_BENCHMARK_REPORT.md`](benchmarks/reports/REAL_BENCHMARK_REPORT.md):
 
-- **Long-Context Multi-Turn KV (`41` strictly matched 5-turn pairs, `7` live Gemini models, ~16.9k tok/turn):** Warm KV-cache hits rose from `0.0%–3.6%` to **`80.2%–87.5%` on Turns `2..5`** (`0.4% -> 68.8%` overall), cutting real billed spend **`-62.1%`** (`$5.9245 -> $2.2461`) at `100.0%` Pass@1 (`p50` latency `-19.3%` on `gemini-3.1-pro-preview` and `-27.1%` on `gemini-4-neon`; faster Flash models added ~1–3s of gate latency).
-- **Agentic Security & Containment (`158` strictly matched pairs, `8` live models incl. open-weights `Gemma 4 31B IT`):** Safety rose from **`86.7% -> 99.4%`** (`137/158 -> 157/158`, `+$0.0146` total extra spend) with **`100.0%` defense across all attack families** and **`0` Gate-2 false positives on `benign_control`**, lifting `Gemma 4 31B IT` (`79.2% -> 100.0%`, `$0.0003` classifier spend) and `Gemini 3.1 Flash-Lite` (`66.7% -> 100.0%`, McNemar `p = 0.008`).
-- **Transparent coverage note:** The live run halted cleanly on `HTTP 402` prepayment credit depletion at `$9.42` before `swe_agent`, `humaneval_plus`, `bigcodebench`, `gsm8k`, and multi-task Gate-3 ECC routing completed.
+#### Mode 2 — Adaptive ECC Multi-Tier Router (`QuadGate v0.1.2` vs. Flagship `Carbon` Alone, `79` Paired Option-1 Tasks)
+
+| System / Arm | `Pass@1` | Receipt Cost | Total Billed (`Guard`) | Median Speed (`p50`) |
+| :--- | :---: | :---: | :---: | :---: |
+| **`Gemini 4 Carbon` (Alone)** | `66/79` (`83.54%`) | `$0.62` | `$0.62` | `23.3 s` |
+| **`QuadGate v0.1.1` (Unpatched ECC)** | `61/79` (`77.22%`) | `$0.59` | `$0.59` | `15.7 s` |
+| **`QuadGate v0.1.2` (Live ECC)** | **`65/79` (`82.28%`, `+5.06 pp`)** | **`$0.38` (`-39.1%`)** | **`$0.50` (`-19.0%`)** | **`7.5 s` (`3.1x` faster)** |
+| **Empirical Oracle Bound** | `67/79` (`84.81%`) | `$0.37` (`-40.2%`) | `—` | `2.5 s` |
+
+#### Mode 1 — Single-Model Wrapper (`Model Alone` vs. `Same Model + QuadGate`, Zero Routing Confounders)
+
+- **Long-Context Multi-Turn KV (`41` matched 5-turn pairs, `7` live Gemini models, ~16.9k tok/turn):** Warm KV-cache hits rose from `0.5%` to **`85.8%` on Turns `2..5`** (`0.4% -> 68.8%` overall), cutting real billed spend **`-62.1%`** (`$5.9245 -> $2.2461`) at `100.0%` `Pass@1`.
+- **Agentic Security & Containment (`158` matched pairs, `8` live models incl. `Gemma 4 31B IT`):** Safety climbed from **`86.7% -> 99.4%`** (`137/158 -> 157/158`) with **`100.0%` attack defense**, `0` Gate-2 benign false positives, and **`0/286` `v0.1.2` leaks** (`Gemma 4 31B IT`: `79.2% -> 100.0%`).
+- **Controlled Single-Model `v0.1.2` Ablation:** Wrapped `Gemini 4 Carbon` (`N=64`) held `85.9%` `Pass@1`, lifted `SWE-Agent` from **`60% -> 100%`** (`3/5 -> 5/5`), and ran **`2.7x` faster** (`23.3 s -> 8.7 s` `p50`); `Gemini 3.8 Flash` (`N=69`) gained **`+7.25 pp`** (`73.9% -> 81.2%`, `+8.70 pp` vs `v0.1.1` `quadgate`, `0` regressions); and `Gemini 3.1 Flash-Lite` (`N=74`) cut `quadgate` cost **`-28.8%`** with **`5.9x`** lower `p50` gate overhead (`1.26 s -> 0.21 s`).
+- **Transparent billing note:** Final-attempt JSONL receipt spend (`$0.38`) excludes `$0.125` settled on `LiveBudgetGuard` for intermediate Carbon `MALFORMED_FUNCTION_CALL` empty-JSON retries (total billed `$0.50`, still `-19.0%` vs. `Carbon` alone; full Option-1 spend stayed under the `$5.00` cap at `$4.94`).
 
 ---
 

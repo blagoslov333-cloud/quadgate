@@ -58,7 +58,7 @@ async def test_daemon_health_latency_and_auth_paths(tmp_path: Path, monkeypatch:
             latency_ms = (time.perf_counter() - t0) * 1000.0
             assert latency_ms < 10.0
             assert data["status"] == "ok"
-            assert data["version"] == "0.1.1"
+            assert data["version"] == "0.1.2"
             assert data["port"] == daemon.bound_port
             assert data["active_driver"] == "zero_dep"
             assert data["active_cartridge"] == "software_engineering"

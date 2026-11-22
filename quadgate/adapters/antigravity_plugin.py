@@ -11,8 +11,10 @@ import zipfile
 from pathlib import Path
 from typing import Any
 
+from quadgate import __version__
+
 PLUGIN_NAME = "quadgate"
-PLUGIN_VERSION = "0.1.1"
+PLUGIN_VERSION = __version__
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 

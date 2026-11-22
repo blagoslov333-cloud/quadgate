@@ -9,6 +9,7 @@ import hashlib
 import inspect
 import io
 import json
+import math
 import os
 import py_compile
 import re
@@ -63,6 +64,18 @@ _COCHANGE_BOOST_THRESHOLD = 0.40
 _COCHANGE_BOOST_WEIGHT = 0.12
 _ECC_SAVINGS_FACTOR = 0.75  # Require >= 25% ECC savings margin over FRONTIER.
 
+_MULTI_LIB_RE = re.compile(
+    r"\b(?:numpy|pandas|scipy|sklearn|matplotlib|torch|transformers|fastapi|flask|django|requests|aiohttp|sqlalchemy|pydantic|boto3|bs4|bigcodebench|multi[-\s]?lib)\b",
+    re.IGNORECASE,
+)
+_STRUCTURED_SECRET_RE = re.compile(
+    r"\b(?:[A-Z]{2,}(?:-[A-Z0-9]{2,}){1,4}|[a-z]+-(?:secret|pager|token|key|priv)-[a-z0-9-]+|\d{3}-\d{2}-\d{4})\b"
+)
+_KV_SECRET_KEY_RE = re.compile(
+    r"secret|token|ssn|routing|password|private|marker|key",
+    re.IGNORECASE,
+)
+
 _READ_ONLY_TOOLS = frozenset(
     {
         "read_file",
@@ -109,7 +122,7 @@ _TOKEN_SPLIT_RE = re.compile(r"[A-Za-z0-9_]+")
 _CAMEL_BOUNDARY_1_RE = re.compile(r"([a-z0-9])([A-Z])")
 _CAMEL_BOUNDARY_2_RE = re.compile(r"([A-Z]+)([A-Z][a-z])")
 _PATH_MENTION_RE = re.compile(
-    r"(?:[A-Za-z0-9_.-]+[/\\])*[A-Za-z0-9_-]+\.[A-Za-z0-9]{1,8}"
+    r"(?:[A-Za-z0-9_.-]+[/\\])*[A-Za-z0-9_-]+\.(?=[0-9]*[A-Za-z])[A-Za-z0-9]{1,8}"
 )
 _DIFF_HUNK_LINE_RE = re.compile(r"^@@\s+-\d+(?:,\d+)?\s+\+(\d+)(?:,\d+)?\s+@@", re.MULTILINE)
 _MD_HEADING_RE = re.compile(r"^[ \t]{0,3}(#{1,6})[ \t]+(.+?)[ \t]*#*[ \t]*$")
@@ -331,6 +344,30 @@ def load_cartridge(name_or_path: str | Path) -> CartridgeSpec:
     if not isinstance(loaded, dict):
         raise ValueError(f"Cartridge YAML {resolved} must deserialize to a mapping.")
     return CartridgeSpec.model_validate(loaded)
+
+
+def load_calibrated_priors(path: str | Path) -> dict[str, Any]:
+    """Load gate3 calibrated priors JSON specification."""
+    raw_str = str(path).strip()
+    if not raw_str:
+        raise ValueError("Calibrated priors path must not be empty.")
+
+    candidate = Path(raw_str).expanduser()
+    resolved: Path | None = None
+    if candidate.is_file():
+        resolved = candidate
+    else:
+        repo_candidate = Path(__file__).resolve().parent.parent.parent / candidate
+        if repo_candidate.is_file():
+            resolved = repo_candidate
+
+    if resolved is None:
+        raise FileNotFoundError(f"Calibrated priors file not found: {path!r}")
+
+    loaded = json.loads(resolved.read_text(encoding="utf-8"))
+    if not isinstance(loaded, dict):
+        raise ValueError(f"Calibrated priors file {resolved} must deserialize to a mapping.")
+    return loaded
 
 
 def _compile_glob(pattern: str) -> re.Pattern[str]:
@@ -798,29 +835,112 @@ def _score_zero_dep_clause_coverage(clause: str, evidence_text: str) -> float:
     return min(1.0, tok_recall)
 
 
-def _zero_dep_tier_pass_priors(query_text: str, target_paths: list[str]) -> dict[ModelTier, float]:
-    """Deterministic complexity prior when using ZeroDepDriver in Gate 3."""
+def _sigmoid(x: float) -> float:
+    if x >= 40.0:
+        return 1.0
+    if x <= -40.0:
+        return 0.0
+    return 1.0 / (1.0 + math.exp(-x))
+
+
+def _zero_dep_tier_pass_priors(
+    query_text: str,
+    target_paths: list[str],
+    cartridge_name: str | None = None,
+    calibrated_priors: dict[str, Any] | None = None,
+) -> dict[ModelTier, float]:
+    """Continuous logistic complexity prior when using ZeroDepDriver in Gate 3."""
+    wc = len(query_text.split())
     has_high = bool(_HIGH_COMPLEXITY_RE.search(query_text))
     has_low = bool(_LOW_COMPLEXITY_RE.search(query_text))
-    word_count = len(query_text.split())
-    many_files = len(target_paths) >= 4
+    many_files = len(target_paths) > 3
 
-    if has_high or (word_count > 65 and not has_low) or many_files:
-        return {
-            ModelTier.FLOOR: 0.42,
-            ModelTier.MID: 0.56,
-            ModelTier.FRONTIER: 0.96,
-        }
-    if word_count > 35 and not has_low:
-        return {
-            ModelTier.FLOOR: 0.70,
-            ModelTier.MID: 0.86,
-            ModelTier.FRONTIER: 0.97,
-        }
+    log_feat = (
+        calibrated_priors.get("logistic_features", {})
+        if isinstance(calibrated_priors, dict)
+        else {}
+    )
+    multi_lib_pattern = log_feat.get("multi_lib_complexity_re")
+    multi_lib_re = (
+        re.compile(multi_lib_pattern, re.IGNORECASE)
+        if multi_lib_pattern
+        else _MULTI_LIB_RE
+    )
+    has_multi = bool(multi_lib_re.search(query_text))
+
+    w_floor = log_feat.get("floor_logit_weights") or {
+        "intercept": 3.2,
+        "log_word_count": -0.70,
+        "has_high_complexity": -2.80,
+        "has_multi_lib": -2.80,
+        "has_low_complexity": 1.50,
+        "target_file_count_over_3": -2.20,
+    }
+    w_mid = log_feat.get("mid_logit_weights") or {
+        "intercept": 4.0,
+        "log_word_count": -0.65,
+        "has_high_complexity": -2.80,
+        "has_multi_lib": -2.80,
+        "has_low_complexity": 1.20,
+        "target_file_count_over_3": -1.80,
+    }
+
+    log_wc = math.log1p(wc)
+    high_val = 1.0 if has_high else 0.0
+    multi_val = 1.0 if has_multi else 0.0
+    low_val = 1.0 if has_low else 0.0
+    many_val = 1.0 if many_files else 0.0
+
+    z_floor = (
+        float(w_floor.get("intercept", 0.0))
+        + float(w_floor.get("log_word_count", 0.0)) * log_wc
+        + float(w_floor.get("has_high_complexity", 0.0)) * high_val
+        + float(w_floor.get("has_multi_lib", 0.0)) * multi_val
+        + float(w_floor.get("has_low_complexity", 0.0)) * low_val
+        + float(w_floor.get("target_file_count_over_3", 0.0)) * many_val
+    )
+    p_floor = _sigmoid(z_floor)
+
+    z_mid = (
+        float(w_mid.get("intercept", 0.0))
+        + float(w_mid.get("log_word_count", 0.0)) * log_wc
+        + float(w_mid.get("has_high_complexity", 0.0)) * high_val
+        + float(w_mid.get("has_multi_lib", 0.0)) * multi_val
+        + float(w_mid.get("has_low_complexity", 0.0)) * low_val
+        + float(w_mid.get("target_file_count_over_3", 0.0)) * many_val
+    )
+    p_mid = _sigmoid(z_mid)
+    p_frontier = 0.98
+
+    # Apply cartridge priors / ceilings
+    cart_priors = (
+        calibrated_priors.get("cartridge_priors", {})
+        if isinstance(calibrated_priors, dict)
+        else {}
+    )
+    prior_alpha = float(log_feat.get("cloud_blend_alpha", 0.35))
+    if cartridge_name and cartridge_name in cart_priors:
+        c_spec = cart_priors[cartridge_name]
+        c_floor = float(c_spec.get("floor", c_spec.get(ModelTier.FLOOR, 1.0)))
+        c_mid = float(c_spec.get("mid", c_spec.get(ModelTier.MID, 1.0)))
+        c_frontier = float(c_spec.get("frontier", c_spec.get(ModelTier.FRONTIER, 0.98)))
+        p_floor = (1.0 - prior_alpha) * c_floor + prior_alpha * p_floor
+        p_mid = (1.0 - prior_alpha) * c_mid + prior_alpha * p_mid
+        p_frontier = max(p_frontier, c_frontier)
+
+    # Cartridge ceilings: financial_ops, legal_redline, and knowledge_vault never route to FLOOR
+    if cartridge_name in {"financial_ops", "legal_redline", "knowledge_vault"}:
+        p_floor = min(p_floor, 0.35)
+
+    # Multi-lib code routes to FRONTIER
+    if has_multi:
+        p_floor = min(p_floor, 0.30)
+        p_mid = min(p_mid, 0.40)
+
     return {
-        ModelTier.FLOOR: 0.90,
-        ModelTier.MID: 0.95,
-        ModelTier.FRONTIER: 0.99,
+        ModelTier.FLOOR: p_floor,
+        ModelTier.MID: p_mid,
+        ModelTier.FRONTIER: p_frontier,
     }
 
 
@@ -928,15 +1048,57 @@ class GateEngine:
         indexer: AstGistIndexer | None = None,
         cochange: CoChangeGraph | None = None,
         healing: Any | None = None,
+        tier_run_costs: dict[ModelTier | str, float] | None = None,
+        ecc_savings_factor: float | None = None,
+        calibrated_priors: dict[str, Any] | None = None,
     ) -> None:
         self.cartridge = cartridge
-        self.thresholds = thresholds or ThresholdConfig()
+        self._calibrated_priors = calibrated_priors
+
+        if thresholds is not None:
+            self.thresholds = thresholds
+        elif calibrated_priors is not None and "thresholds" in calibrated_priors:
+            base_th = ThresholdConfig()
+            priors_th = calibrated_priors["thresholds"]
+            self.thresholds = base_th.model_copy(
+                update={k: float(v) for k, v in priors_th.items() if hasattr(base_th, k)}
+            )
+        else:
+            self.thresholds = ThresholdConfig()
+
         self.tiers = tiers or TierModelConfig()
         self.driver: ClassifierDriver = driver if driver is not None else ZeroDepDriver()
         self.fts_store = fts_store
         self.indexer = indexer
         self.cochange = cochange
         self.healing = healing
+
+        default_tier_costs = {
+            ModelTier.FLOOR: 0.10,
+            ModelTier.MID: 0.30,
+            ModelTier.FRONTIER: 1.00,
+        }
+        if tier_run_costs is not None:
+            self._tier_run_cost = {
+                (t if isinstance(t, ModelTier) else ModelTier(str(t).lower())): float(c)
+                for t, c in tier_run_costs.items()
+            }
+        elif calibrated_priors is not None and "tier_run_costs" in calibrated_priors:
+            raw_c = calibrated_priors["tier_run_costs"]
+            self._tier_run_cost = {
+                (t if isinstance(t, ModelTier) else ModelTier(str(t).lower())): float(c)
+                for t, c in raw_c.items()
+            }
+        else:
+            self._tier_run_cost = default_tier_costs
+
+        if ecc_savings_factor is not None:
+            self._ecc_savings_factor = float(ecc_savings_factor)
+        elif calibrated_priors is not None and "ecc_savings_factor" in calibrated_priors:
+            self._ecc_savings_factor = float(calibrated_priors["ecc_savings_factor"])
+        else:
+            self._ecc_savings_factor = 0.75
+
         self._airgap_driver: ClassifierDriver = (
             self.driver if type(self.driver) is ZeroDepDriver else ZeroDepDriver()
         )
@@ -948,6 +1110,7 @@ class GateEngine:
         self._gate2_strikes: dict[tuple[str, str], int] = {}
         self._airgapped_sessions: set[str] = set()
         self._ws_has_private_cache: dict[str, tuple[float, bool]] = {}
+        self._private_tokens_cache: dict[str, tuple[float, dict[str, str]]] = {}
 
     def _workspace_has_private_files(self, workspace_root: str) -> bool:
         if not workspace_root:
@@ -1565,6 +1728,109 @@ class GateEngine:
             pass
         await _maybe_await(fn(event, score, head_id))
 
+    def _collect_private_tier1_secret_tokens(self, workspace_root: str) -> dict[str, str]:
+        """Scan workspace files matching private tier-1 globs for secret tokens (cached 0 ms)."""
+        if not workspace_root:
+            return {}
+        ws_path = Path(workspace_root)
+        if not ws_path.is_dir():
+            return {}
+
+        now = time.monotonic()
+        cached = self._private_tokens_cache.get(workspace_root)
+        if cached is not None:
+            ts, tokens_dict = cached
+            if (now - ts) < 2.0:
+                return tokens_dict
+
+        is_self_repo = (ws_path / "quadgate" / "kernel").is_dir()
+        tokens: dict[str, str] = {}
+        for root_str, dirnames, filenames in os.walk(ws_path):
+            dirnames[:] = [
+                d
+                for d in dirnames
+                if d not in _EXCLUDED_WALK_DIRS
+                and not d.startswith(".")
+                and not (is_self_repo and d in {"benchmarks", "tests"})
+            ]
+            rel_dir = Path(root_str).relative_to(ws_path)
+            rel_dir_posix = "" if str(rel_dir) == "." else rel_dir.as_posix()
+            for fname in filenames:
+                rel = f"{rel_dir_posix}/{fname}" if rel_dir_posix else fname
+                if not self._matches_private_glob(rel, workspace_root):
+                    continue
+                fpath = Path(root_str) / fname
+                try:
+                    content = fpath.read_text(encoding="utf-8", errors="replace")
+                except OSError:
+                    continue
+                if not content.strip():
+                    continue
+
+                for m in _STRUCTURED_SECRET_RE.finditer(content):
+                    tok = m.group(0).strip()
+                    if any(c.isdigit() for c in tok) and len(tok) >= 5:
+                        tokens[tok] = rel
+
+                ext = fpath.suffix.lower()
+                if ext in {".csv", ".tsv"}:
+                    delim = "\t" if ext == ".tsv" else ","
+                    try:
+                        reader = csv.reader(io.StringIO(content), delimiter=delim)
+                        headers = next(reader, None)
+                        if headers:
+                            target_cols = [
+                                idx
+                                for idx, h in enumerate(headers)
+                                if _KV_SECRET_KEY_RE.search(str(h))
+                            ]
+                            for row in reader:
+                                for c_idx in target_cols:
+                                    if c_idx < len(row):
+                                        val = row[c_idx].strip().strip("'\"")
+                                        if len(val) >= 8:
+                                            tokens[val] = rel
+                    except Exception:
+                        pass
+                elif ext == ".json":
+                    try:
+                        parsed = json.loads(content)
+
+                        def _walk_json(obj: Any) -> None:
+                            if isinstance(obj, dict):
+                                for k, v in obj.items():
+                                    if _KV_SECRET_KEY_RE.search(str(k)):
+                                        if isinstance(v, (str, int, float)) and not isinstance(v, bool):
+                                            s_val = str(v).strip().strip("'\"")
+                                            if len(s_val) >= 8:
+                                                tokens[s_val] = rel
+                                    _walk_json(v)
+                            elif isinstance(obj, list):
+                                for item in obj:
+                                    _walk_json(item)
+
+                        _walk_json(parsed)
+                    except Exception:
+                        pass
+                else:
+                    for line in content.splitlines():
+                        s_line = line.strip()
+                        if not s_line or s_line.startswith("#"):
+                            continue
+                        if "=" in s_line:
+                            k_part, _, v_part = s_line.partition("=")
+                        elif ":" in s_line and not s_line.startswith("http"):
+                            k_part, _, v_part = s_line.partition(":")
+                        else:
+                            continue
+                        k_clean = k_part.strip()
+                        v_clean = v_part.strip().strip("'\"")
+                        if len(v_clean) >= 8 and _KV_SECRET_KEY_RE.search(k_clean):
+                            tokens[v_clean] = rel
+
+        self._private_tokens_cache[workspace_root] = (now, tokens)
+        return tokens
+
     async def evaluate_gate2_firewall(self, event: GateEvent) -> GateVerdict:
         """Execute Stage-2A/2B pre-mutation invariant checks and 2-strike escalation."""
         t0 = time.perf_counter()
@@ -1574,6 +1840,51 @@ class GateEngine:
 
         target_paths = _extract_target_paths(event)
         read_only = _is_read_only_tool(event.tool_name)
+
+        # Stage-2A Tier-1 Private Leak Guard (0 ms deterministic, NEVER bypassed)
+        if not read_only:
+            is_writing_non_private = not target_paths or any(
+                not self._matches_private_glob(p, event.workspace_root) for p in target_paths
+            )
+            if is_writing_non_private:
+                proposed_change = _extract_proposed_change_text(event)
+                if proposed_change:
+                    private_tokens = self._collect_private_tier1_secret_tokens(event.workspace_root)
+                    if private_tokens:
+                        for token, src_rel in private_tokens.items():
+                            if token in proposed_change:
+                                rule_id = "INV_01_PRIVATE_TIER1_LEAK"
+                                strike = self._record_gate2_strike(
+                                    event.session_id,
+                                    rule_id,
+                                    event.strike_count,
+                                )
+                                escalate = strike >= 2
+                                remediation = (
+                                    f"Stage-2A deterministic block: proposed change contains private Tier-1 "
+                                    f"secret from '{src_rel}'. Redact private credentials before mutating."
+                                )
+                                if escalate:
+                                    remediation = (
+                                        f"HUMAN CONFIRMATION REQUIRED (strike {strike} on {rule_id}): "
+                                        f"{remediation} Confirm human override before proceeding."
+                                    )
+                                receipt = ViolationReceipt(
+                                    rule_id=rule_id,
+                                    score=1.0,
+                                    stage="deterministic_2a",
+                                    remediation=remediation,
+                                    strike_count=strike,
+                                    escalate_to_human=escalate,
+                                    violated_path=target_paths[0] if target_paths else None,
+                                )
+                                return GateVerdict(
+                                    action=VerdictAction.BLOCK,
+                                    gate=GateType.FIREWALL,
+                                    violation_receipt=receipt,
+                                    reason=remediation,
+                                    latency_ms=(time.perf_counter() - t0) * 1000.0,
+                                )
 
         # Stage-2A (0 ms deterministic, NEVER bypassed)
         stage2a_payload: dict[str, object] = {
@@ -1834,7 +2145,7 @@ class GateEngine:
         b = min(1.0, max(0.0, float(blast_radius)))
         r = min(1.0, max(0.0, float(r_hist)))
         p_eff = p * (1.0 - 0.5 * b) * (1.0 - r)
-        return _TIER_RUN_COST[tier] + (1.0 - p_eff) * _FRONTIER_PROMOTE_COST
+        return self._tier_run_cost[tier] + (1.0 - p_eff) * _FRONTIER_PROMOTE_COST
 
     def _resolve_gate3_targets(self, event: GateEvent, query_text: str) -> list[str]:
         candidates = _extract_target_paths(event)
@@ -2027,14 +2338,29 @@ class GateEngine:
 
         max_inv = max((probs.get(h.head_id, 0.0) for h in inv_heads), default=0.0)
 
-        if type(active_driver) is ZeroDepDriver:
-            p_pass_by_tier = _zero_dep_tier_pass_priors(subagent_prompt, target_paths)
+        emp_priors = _zero_dep_tier_pass_priors(
+            subagent_prompt,
+            target_paths,
+            self.cartridge.name,
+            self._calibrated_priors,
+        )
+
+        if self._calibrated_priors is None:
+            if type(active_driver) is ZeroDepDriver:
+                p_pass_by_tier = emp_priors
+            else:
+                p_pass_by_tier = {
+                    ModelTier.FLOOR: probs.get("tier:floor", 0.0),
+                    ModelTier.MID: probs.get("tier:mid", 0.0),
+                    ModelTier.FRONTIER: probs.get("tier:frontier", 0.95),
+                }
         else:
-            p_pass_by_tier = {
-                ModelTier.FLOOR: probs.get("tier:floor", 0.0),
-                ModelTier.MID: probs.get("tier:mid", 0.0),
-                ModelTier.FRONTIER: probs.get("tier:frontier", 0.95),
-            }
+            p_pass_by_tier = dict(emp_priors)
+            if self.cartridge.name in {"financial_ops", "legal_redline", "knowledge_vault"}:
+                p_pass_by_tier[ModelTier.FLOOR] = min(p_pass_by_tier[ModelTier.FLOOR], 0.35)
+            if emp_priors[ModelTier.FLOOR] <= 0.30 and emp_priors[ModelTier.MID] <= 0.40:
+                p_pass_by_tier[ModelTier.FLOOR] = min(p_pass_by_tier[ModelTier.FLOOR], 0.30)
+                p_pass_by_tier[ModelTier.MID] = min(p_pass_by_tier[ModelTier.MID], 0.40)
 
         ecc_frontier = self.compute_ecc(
             ModelTier.FRONTIER,
@@ -2078,7 +2404,7 @@ class GateEngine:
             if (
                 max_inv < 0.50
                 and p_eff_k >= tau_k
-                and ecc_k <= _ECC_SAVINGS_FACTOR * ecc_frontier
+                and ecc_k <= self._ecc_savings_factor * ecc_frontier
             ):
                 selected_tier = tier
                 selected_p_eff = p_eff_k
@@ -2280,7 +2606,7 @@ class GateEngine:
 
     def _check_citations_present(
         self,
-        _event: GateEvent,
+        event: GateEvent,
         artifacts: list[tuple[str, str]],
     ) -> str | None:
         for name, text in artifacts:
@@ -2304,6 +2630,45 @@ class GateEngine:
             )
             if not has_citation:
                 return f"Missing grounded citations or source links in {name!r}."
+
+            if event.prompt_text and event.workspace_root:
+                p_low = event.prompt_text.lower()
+                if "wikilink" in p_low or "[[" in p_low:
+                    ws_path = Path(event.workspace_root)
+                    touched_norms = {
+                        _normalize_rel_posix(tf, event.workspace_root).lower()
+                        for tf in event.touched_files
+                    }
+                    mentioned_source_stems: list[str] = []
+                    for m in _PATH_MENTION_RE.finditer(event.prompt_text):
+                        raw_mention = m.group(0)
+                        cand = Path(raw_mention)
+                        if not cand.is_absolute():
+                            cand = ws_path / cand
+                        if cand.is_file():
+                            rel = _normalize_rel_posix(raw_mention, event.workspace_root)
+                            if (
+                                rel.lower() not in touched_norms
+                                and not self._is_private_hint_path(rel, event.workspace_root)
+                            ):
+                                stem = cand.stem.lower()
+                                if stem not in mentioned_source_stems:
+                                    mentioned_source_stems.append(stem)
+
+                    if mentioned_source_stems:
+                        wikilink_stems: set[str] = set()
+                        for wm in _WIKILINK_RE.finditer(stripped):
+                            raw_target = wm.group(1).strip().replace("\\", "/").lstrip("./")
+                            wikilink_stems.add(Path(raw_target.lower()).stem)
+                            target_no_ext = raw_target.lower().rsplit(".", 1)[0].rsplit("/", 1)[-1]
+                            wikilink_stems.add(target_no_ext)
+
+                        missing = [s for s in mentioned_source_stems if s not in wikilink_stems]
+                        if missing:
+                            return (
+                                f"Missing required [[wikilink]] citation(s) for referenced source(s): "
+                                f"{', '.join(missing)} in {name!r}."
+                            )
         return None
 
     def _check_double_entry_sum(
@@ -2514,6 +2879,113 @@ class GateEngine:
                     return f"Broken internal cross-reference '§ {m.group(1)}' in {name!r}."
         return None
 
+    def _check_valid_json_answer(
+        self,
+        _event: GateEvent,
+        artifacts: list[tuple[str, str]],
+    ) -> str | None:
+        for name, text in artifacts:
+            s = text.strip()
+            if not s:
+                return f"Empty answer artifact in {name!r}."
+
+            # 1. Try extracting non-empty JSON dict
+            json_obj: dict[str, Any] | None = None
+            try:
+                parsed = json.loads(s)
+                if isinstance(parsed, dict) and len(parsed) > 0:
+                    json_obj = parsed
+            except json.JSONDecodeError:
+                pass
+
+            if json_obj is None:
+                for block in _MD_FENCE_RE.findall(text):
+                    content = re.sub(r"^```[a-zA-Z0-9_-]*\n|```$", "", block).strip()
+                    try:
+                        parsed = json.loads(content)
+                        if isinstance(parsed, dict) and len(parsed) > 0:
+                            json_obj = parsed
+                            break
+                    except json.JSONDecodeError:
+                        continue
+
+            if json_obj is None:
+                decoder = json.JSONDecoder()
+                idx = 0
+                while idx < len(text):
+                    pos = text.find("{", idx)
+                    if pos == -1:
+                        break
+                    try:
+                        obj, end_idx = decoder.raw_decode(text, pos)
+                        if isinstance(obj, dict) and len(obj) > 0:
+                            json_obj = obj
+                            break
+                        idx = max(pos + 1, end_idx)
+                    except json.JSONDecodeError:
+                        idx = pos + 1
+
+            if json_obj is not None:
+                for key in ("final_answer", "number"):
+                    if key in json_obj:
+                        val = json_obj[key]
+                        if isinstance(val, bool):
+                            return f"Invalid boolean '{key}' in {name!r}."
+                        if isinstance(val, (int, float)):
+                            if not math.isfinite(val):
+                                return f"Non-finite '{key}' value {val!r} in {name!r}."
+                        elif isinstance(val, str):
+                            cleaned = val.replace("$", "").replace(",", "").strip()
+                            m = re.search(r"[-+]?\d+(?:\.\d+)?", cleaned)
+                            if not m:
+                                return f"Unparseable numeric '{key}' value {val!r} in {name!r}."
+                            try:
+                                f_val = float(m.group(0))
+                                if not math.isfinite(f_val):
+                                    return f"Non-finite '{key}' value {val!r} in {name!r}."
+                            except ValueError:
+                                return f"Unparseable numeric '{key}' value {val!r} in {name!r}."
+                        else:
+                            return f"Unsupported '{key}' type {type(val).__name__} in {name!r}."
+                continue
+
+            # 2. Standalone numeric answer fallback
+            num: float | None = None
+            try:
+                candidate = float(s)
+                if math.isfinite(candidate):
+                    num = candidate
+            except ValueError:
+                pass
+
+            if num is None:
+                m_hash = re.search(r"####\s*[-+]?\$?\s*([0-9,]+(?:\.[0-9]+)?)", s)
+                if m_hash:
+                    try:
+                        cand = float(m_hash.group(1).replace(",", ""))
+                        if math.isfinite(cand):
+                            num = cand
+                    except ValueError:
+                        pass
+
+            if num is None:
+                nums = re.findall(r"[-+]?\b\d+(?:\.\d+)?\b", s)
+                if nums:
+                    try:
+                        cand = float(nums[-1])
+                        if math.isfinite(cand):
+                            num = cand
+                    except ValueError:
+                        pass
+
+            if num is None:
+                return (
+                    f"Invalid answer in {name!r}: expected non-empty JSON dict or "
+                    f"parseable finite numeric answer."
+                )
+
+        return None
+
     def _run_builtin_check(
         self,
         check_name: str,
@@ -2529,6 +3001,7 @@ class GateEngine:
             "verify_currency_precision": self._check_currency_precision,
             "verify_required_clauses_present": self._check_required_clauses_present,
             "verify_cross_references": self._check_cross_references,
+            "verify_valid_json_answer": self._check_valid_json_answer,
         }
         handler = handlers.get(check_name)
         if handler is None:
@@ -2609,6 +3082,14 @@ class GateEngine:
                 return await self._handle_gate4_failure_verdict(event, check_error, t0=t0)
 
         # 2. Directive completeness verification
+        if not getattr(self.cartridge.truth_oracle, "check_clause_completeness", True):
+            return GateVerdict(
+                action=VerdictAction.ALLOW,
+                gate=GateType.STOP_AUDIT,
+                cloud_egress_allowed=True,
+                latency_ms=(time.perf_counter() - t0) * 1000.0,
+            )
+
         clauses = _extract_atomic_clauses(event.prompt_text or "")
         if not clauses:
             return GateVerdict(
@@ -2744,5 +3225,6 @@ __all__ = [
     "GateEngine",
     "ThresholdConfig",
     "TierModelConfig",
+    "load_calibrated_priors",
     "load_cartridge",
 ]

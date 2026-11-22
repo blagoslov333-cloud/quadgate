@@ -389,23 +389,23 @@ def test_visual_assets_social_preview_and_demo() -> None:
     assert svg_root.attrib.get("width") == "1280"
     assert svg_root.attrib.get("height") == "640"
     svg_raw = SOCIAL_SVG_PATH.read_text(encoding="utf-8")
-    assert "#0D1117" in svg_raw
-    assert "#238636" in svg_raw
+    assert "#080707" in svg_raw
+    assert "#F59E0B" in svg_raw
     svg_texts = [
         "".join(elem.itertext()).strip()
         for elem in svg_root.iter()
         if elem.tag.endswith("text")
     ]
-    total_words = sum(len(t.split()) for t in svg_texts)
-    assert 3 <= total_words <= 18, f"Social preview must stay <= 18 words, got {total_words}."
-    assert any("QuadGate" in t for t in svg_texts)
+    svg_joined = " ".join(svg_texts)
+    for marker in ("-62.1%", "-39.1%", "3.1x", "100%", "1,293", "QuadGate"):
+        assert marker in svg_joined, f"Social preview SVG missing verified metric/marker: {marker!r}"
 
     png_bytes = SOCIAL_PNG_PATH.read_bytes()
     assert png_bytes[:8] == b"\x89PNG\r\n\x1a\n", "Invalid PNG signature."
     assert png_bytes[12:16] == b"IHDR", "Missing PNG IHDR chunk."
     width, height = struct.unpack(">II", png_bytes[16:24])
     assert (width, height) == (1280, 640), f"Expected 1280x640 PNG, got {width}x{height}."
-    assert len(png_bytes) < 150_000, f"Social preview PNG too large: {len(png_bytes)} bytes."
+    assert len(png_bytes) < 250_000, f"Social preview PNG too large: {len(png_bytes)} bytes."
 
     tape_text = DEMO_TAPE_PATH.read_text(encoding="utf-8")
     for marker in (

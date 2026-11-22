@@ -1,0 +1,63 @@
+{
+  "schema_version": "1.0",
+  "calibrated_on_receipts": 1007,
+  "simulations": 20000,
+  "seed": 42,
+  "tier_run_costs": {
+    "floor": 0.1,
+    "mid": 0.3,
+    "frontier": 1.0
+  },
+  "ecc_savings_factor": 0.75,
+  "thresholds": {
+    "gate3_floor_confidence": 0.82,
+    "gate3_mid_confidence": 0.6
+  },
+  "cartridge_priors": {
+    "general_reasoning": {
+      "floor": 0.95,
+      "mid": 0.96,
+      "frontier": 0.99
+    },
+    "software_engineering": {
+      "floor": 0.88,
+      "mid": 0.72,
+      "frontier": 0.92
+    },
+    "knowledge_vault": {
+      "floor": 0.1,
+      "mid": 0.35,
+      "frontier": 0.9
+    },
+    "financial_ops": {
+      "floor": 0.05,
+      "mid": 0.5,
+      "frontier": 0.98
+    },
+    "legal_redline": {
+      "floor": 0.05,
+      "mid": 0.5,
+      "frontier": 0.98
+    }
+  },
+  "logistic_features": {
+    "multi_lib_complexity_re": "\\b(?:multi[-\\s]?lib|multiple\\s+librar\\w*|numpy|pandas|scipy|matplotlib|torch|sklearn|itertools|collections|datetime|subprocess)\\b",
+    "floor_logit_weights": {
+      "intercept": 2.5,
+      "log_word_count": -0.3,
+      "has_high_complexity": -2.6,
+      "has_multi_lib": -2.8,
+      "has_low_complexity": 0.8,
+      "target_file_count_over_3": -1.8
+    },
+    "mid_logit_weights": {
+      "intercept": 1.1,
+      "log_word_count": -0.2,
+      "has_high_complexity": -2.2,
+      "has_multi_lib": -2.4,
+      "has_low_complexity": 0.4,
+      "target_file_count_over_3": -1.2
+    },
+    "cloud_blend_alpha": 0.35
+  }
+}

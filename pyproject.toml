@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "quadgate"
-version = "0.1.1"
+version = "0.1.2"
 description = "Model-agnostic & harness-agnostic 4-gate discriminative kernel for AI coding and knowledge agents"
 readme = "README.md"
 license = { text = "Apache-2.0" }
@@ -58,6 +58,8 @@ module = [
     "numpy.*",
     "onnxruntime",
     "onnxruntime.*",
+    "pypdf",
+    "pypdf.*",
     "tokenizers",
     "tokenizers.*",
     "tree_sitter_language_pack",

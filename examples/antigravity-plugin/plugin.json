@@ -1,7 +1,7 @@
 {
   "name": "quadgate",
   "displayName": "QuadGate 4-Gate Control Plane",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "4-gate discriminative control plane for Antigravity and Swarms: Pass-0 context sieve, Stage-2A/2B mutation firewall, ECC Swarm/subagent model router, and Stop truth-oracle audit.",
   "logo": "assets/logo.svg",
   "suggestedPrompts": [

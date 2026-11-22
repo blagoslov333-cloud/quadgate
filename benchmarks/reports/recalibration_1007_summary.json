@@ -1,0 +1,2995 @@
+{
+  "generated_utc": "2026-11-22 02:12:21Z",
+  "results_path": "benchmarks/reports/real_live_results.jsonl",
+  "total_receipts": 1007,
+  "sha256_verified_receipts": 1007,
+  "bad_sha_count": 0,
+  "simulations": 20000,
+  "seed": 42,
+  "total_benchmark_tasks": 109,
+  "ecc_governor_tasks": 79,
+  "routing_verification": {
+    "word_count_shift_64_to_67": {
+      "p_floor_64": 0.8442,
+      "p_floor_67": 0.8434,
+      "delta": 0.00083,
+      "satisfies_constraint": true
+    },
+    "gsm8k_routed_tier": "floor",
+    "humaneval_plus_routed_tier": "floor",
+    "leaf_swe_agent_routed_tier": "floor",
+    "multilib_complex_bigcodebench_routed_tier": "frontier",
+    "enterprise_knowledge_routed_tiers": {
+      "knowledge_vault": "frontier",
+      "financial_ops": "frontier",
+      "legal_redline": "frontier"
+    },
+    "all_routing_constraints_passed": true
+  },
+  "empirical_measurements": {
+    "per_suite": {
+      "agentic_security": {
+        "all": {
+          "n": 337,
+          "passed": 313,
+          "pass_at_1_pct": 92.88,
+          "total_cost_usd": 0.904297,
+          "mean_cost_usd": 0.002683,
+          "p50_ms": 9521.65,
+          "p90_ms": 63149.67,
+          "thoughts_pct": 85.46,
+          "mean_turns": 1.0
+        },
+        "baseline": {
+          "n": 173,
+          "passed": 150,
+          "pass_at_1_pct": 86.71,
+          "total_cost_usd": 0.470641,
+          "mean_cost_usd": 0.00272,
+          "p50_ms": 8414.76,
+          "p90_ms": 69610.78,
+          "thoughts_pct": 85.19,
+          "mean_turns": 1.0
+        },
+        "quadgate": {
+          "n": 164,
+          "passed": 163,
+          "pass_at_1_pct": 99.39,
+          "total_cost_usd": 0.433655,
+          "mean_cost_usd": 0.002644,
+          "p50_ms": 10516.0,
+          "p90_ms": 60607.09,
+          "thoughts_pct": 85.74,
+          "mean_turns": 1.0
+        },
+        "by_model": {
+          "gemini-3.1-flash-lite": {
+            "baseline": {
+              "n": 24,
+              "passed": 16,
+              "pass_at_1_pct": 66.67,
+              "total_cost_usd": 0.002542,
+              "mean_cost_usd": 0.000106,
+              "p50_ms": 1328.33,
+              "p90_ms": 2459.84,
+              "thoughts_pct": 0.0,
+              "mean_turns": 1.0
+            },
+            "quadgate": {
+              "n": 24,
+              "passed": 24,
+              "pass_at_1_pct": 100.0,
+              "total_cost_usd": 0.002877,
+              "mean_cost_usd": 0.00012,
+              "p50_ms": 1577.13,
+              "p90_ms": 6273.4,
+              "thoughts_pct": 0.0,
+              "mean_turns": 1.0
+            }
+          },
+          "gemini-3.1-pro-preview": {
+            "baseline": {
+              "n": 20,
+              "passed": 17,
+              "pass_at_1_pct": 85.0,
+              "total_cost_usd": 0.082844,
+              "mean_cost_usd": 0.004142,
+              "p50_ms": 13160.85,
+              "p90_ms": 25174.39,
+              "thoughts_pct": 86.13,
+              "mean_turns": 1.0
+            },
+            "quadgate": {
+              "n": 19,
+              "passed": 19,
+              "pass_at_1_pct": 100.0,
+              "total_cost_usd": 0.081129,
+              "mean_cost_usd": 0.00427,
+              "p50_ms": 16119.69,
+              "p90_ms": 38916.25,
+              "thoughts_pct": 87.05,
+              "mean_turns": 1.0
+            }
+          },
+          "gemini-3.8-flash": {
+            "baseline": {
+              "n": 24,
+              "passed": 22,
+              "pass_at_1_pct": 91.67,
+              "total_cost_usd": 0.041351,
+              "mean_cost_usd": 0.001723,
+              "p50_ms": 9119.03,
+              "p90_ms": 13263.7,
+              "thoughts_pct": 92.76,
+              "mean_turns": 1.0
+            },
+            "quadgate": {
+              "n": 24,
+              "passed": 23,
+              "pass_at_1_pct": 95.83,
+              "total_cost_usd": 0.043293,
+              "mean_cost_usd": 0.001804,
+              "p50_ms": 10178.92,
+              "p90_ms": 15126.13,
+              "thoughts_pct": 92.65,
+              "mean_turns": 1.0
+            }
+          },
+          "gemini-4-argon": {
+            "baseline": {
+              "n": 20,
+              "passed": 18,
+              "pass_at_1_pct": 90.0,
+              "total_cost_usd": 0.029194,
+              "mean_cost_usd": 0.00146,
+              "p50_ms": 5635.06,
+              "p90_ms": 13269.1,
+              "thoughts_pct": 38.29,
+              "mean_turns": 1.0
+            },
+            "quadgate": {
+              "n": 15,
+              "passed": 15,
+              "pass_at_1_pct": 100.0,
+              "total_cost_usd": 0.022674,
+              "mean_cost_usd": 0.001512,
+              "p50_ms": 7017.97,
+              "p90_ms": 22944.57,
+              "thoughts_pct": 45.78,
+              "mean_turns": 1.0
+            }
+          },
+          "gemini-4-carbon": {
+            "baseline": {
+              "n": 24,
+              "passed": 23,
+              "pass_at_1_pct": 95.83,
+              "total_cost_usd": 0.07414,
+              "mean_cost_usd": 0.003089,
+              "p50_ms": 8655.66,
+              "p90_ms": 25946.64,
+              "thoughts_pct": 84.47,
+              "mean_turns": 1.0
+            },
+            "quadgate": {
+              "n": 24,
+              "passed": 24,
+              "pass_at_1_pct": 100.0,
+              "total_cost_usd": 0.078811,
+              "mean_cost_usd": 0.003284,
+              "p50_ms": 12504.49,
+              "p90_ms": 28030.43,
+              "thoughts_pct": 84.24,
+              "mean_turns": 1.0
+            }
+          },
+          "gemini-4-hydrogen": {
+            "baseline": {
+              "n": 18,
+              "passed": 17,
+              "pass_at_1_pct": 94.44,
+              "total_cost_usd": 0.060045,
+              "mean_cost_usd": 0.003336,
+              "p50_ms": 4588.65,
+              "p90_ms": 9905.11,
+              "thoughts_pct": 88.92,
+              "mean_turns": 1.0
+            },
+            "quadgate": {
+              "n": 19,
+              "passed": 19,
+              "pass_at_1_pct": 100.0,
+              "total_cost_usd": 0.064094,
+              "mean_cost_usd": 0.003373,
+              "p50_ms": 6085.91,
+              "p90_ms": 13971.56,
+              "thoughts_pct": 89.0,
+              "mean_turns": 1.0
+            }
+          },
+          "gemini-4-neon": {
+            "baseline": {
+              "n": 19,
+              "passed": 18,
+              "pass_at_1_pct": 94.74,
+              "total_cost_usd": 0.180525,
+              "mean_cost_usd": 0.009501,
+              "p50_ms": 14444.36,
+              "p90_ms": 22380.59,
+              "thoughts_pct": 91.37,
+              "mean_turns": 1.0
+            },
+            "quadgate": {
+              "n": 15,
+              "passed": 15,
+              "pass_at_1_pct": 100.0,
+              "total_cost_usd": 0.140442,
+              "mean_cost_usd": 0.009363,
+              "p50_ms": 14946.25,
+              "p90_ms": 26170.23,
+              "thoughts_pct": 92.26,
+              "mean_turns": 1.0
+            }
+          },
+          "gemma-4-31b-it": {
+            "baseline": {
+              "n": 24,
+              "passed": 19,
+              "pass_at_1_pct": 79.17,
+              "total_cost_usd": 0.0,
+              "mean_cost_usd": 0.0,
+              "p50_ms": 98711.96,
+              "p90_ms": 176473.52,
+              "thoughts_pct": 82.24,
+              "mean_turns": 1.0
+            },
+            "quadgate": {
+              "n": 24,
+              "passed": 24,
+              "pass_at_1_pct": 100.0,
+              "total_cost_usd": 0.000335,
+              "mean_cost_usd": 1.4e-05,
+              "p50_ms": 102046.16,
+              "p90_ms": 174547.57,
+              "thoughts_pct": 82.24,
+              "mean_turns": 1.0
+            }
+          }
+        }
+      },
+      "bigcodebench": {
+        "all": {
+          "n": 104,
+          "passed": 69,
+          "pass_at_1_pct": 66.35,
+          "total_cost_usd": 0.60947,
+          "mean_cost_usd": 0.00586,
+          "p50_ms": 14462.21,
+          "p90_ms": 47038.11,
+          "thoughts_pct": 81.31,
+          "mean_turns": 1.04
+        },
+        "baseline": {
+          "n": 45,
+          "passed": 30,
+          "pass_at_1_pct": 66.67,
+          "total_cost_usd": 0.21845,
+          "mean_cost_usd": 0.004854,
+          "p50_ms": 12090.75,
+          "p90_ms": 43604.55,
+          "thoughts_pct": 78.28,
+          "mean_turns": 1.0
+        },
+        "quadgate": {
+          "n": 59,
+          "passed": 39,
+          "pass_at_1_pct": 66.1,
+          "total_cost_usd": 0.39102,
+          "mean_cost_usd": 0.006627,
+          "p50_ms": 16155.86,
+          "p90_ms": 66732.5,
+          "thoughts_pct": 83.01,
+          "mean_turns": 1.07
+        },
+        "by_model": {
+          "gemini-3.1-flash-lite": {
+            "baseline": {
+              "n": 14,
+              "passed": 9,
+              "pass_at_1_pct": 64.29,
+              "total_cost_usd": 0.004505,
+              "mean_cost_usd": 0.000322,
+              "p50_ms": 1548.65,
+              "p90_ms": 1808.72,
+              "thoughts_pct": 0.0,
+              "mean_turns": 1.0
+            },
+            "quadgate": {
+              "n": 14,
+              "passed": 9,
+              "pass_at_1_pct": 64.29,
+              "total_cost_usd": 0.007633,
+              "mean_cost_usd": 0.000545,
+              "p50_ms": 3176.45,
+              "p90_ms": 6988.22,
+              "thoughts_pct": 0.0,
+              "mean_turns": 1.0
+            }
+          },
+          "gemini-3.8-flash": {
+            "baseline": {
+              "n": 14,
+              "passed": 8,
+              "pass_at_1_pct": 57.14,
+              "total_cost_usd": 0.097045,
+              "mean_cost_usd": 0.006932,
+              "p50_ms": 13949.59,
+              "p90_ms": 32350.6,
+              "thoughts_pct": 89.25,
+              "mean_turns": 1.0
+            },
+            "quadgate": {
+              "n": 14,
+              "passed": 8,
+              "pass_at_1_pct": 57.14,
+              "total_cost_usd": 0.114006,
+              "mean_cost_usd": 0.008143,
+              "p50_ms": 18057.69,
+              "p90_ms": 38995.62,
+              "thoughts_pct": 89.41,
+              "mean_turns": 1.07
+            }
+          },
+          "gemini-4-carbon": {
+            "baseline": {
+              "n": 14,
+              "passed": 11,
+              "pass_at_1_pct": 78.57,
+              "total_cost_usd": 0.1169,
+              "mean_cost_usd": 0.00835,
+              "p50_ms": 22471.19,
+              "p90_ms": 60051.43,
+              "thoughts_pct": 73.39,
+              "mean_turns": 1.0
+            },
+            "quadgate": {
+              "n": 14,
+              "passed": 10,
+              "pass_at_1_pct": 71.43,
+              "total_cost_usd": 0.142528,
+              "mean_cost_usd": 0.010181,
+              "p50_ms": 27233.24,
+              "p90_ms": 33881.01,
+              "thoughts_pct": 78.68,
+              "mean_turns": 1.07
+            }
+          },
+          "gemma-4-31b-it": {
+            "baseline": {
+              "n": 3,
+              "passed": 2,
+              "pass_at_1_pct": 66.67,
+              "total_cost_usd": 0.0,
+              "mean_cost_usd": 0.0,
+              "p50_ms": 93067.78,
+              "p90_ms": 94741.2,
+              "thoughts_pct": 68.13,
+              "mean_turns": 1.0
+            },
+            "quadgate": {
+              "n": 3,
+              "passed": 3,
+              "pass_at_1_pct": 100.0,
+              "total_cost_usd": 0.000581,
+              "mean_cost_usd": 0.000194,
+              "p50_ms": 91127.76,
+              "p90_ms": 101408.95,
+              "thoughts_pct": 67.53,
+              "mean_turns": 1.0
+            }
+          },
+          "quadgate-ecc-router": {
+            "baseline": {
+              "n": 0
+            },
+            "quadgate": {
+              "n": 14,
+              "passed": 9,
+              "pass_at_1_pct": 64.29,
+              "total_cost_usd": 0.126271,
+              "mean_cost_usd": 0.009019,
+              "p50_ms": 17498.3,
+              "p90_ms": 71662.5,
+              "thoughts_pct": 88.08,
+              "mean_turns": 1.14
+            }
+          }
+        }
+      },
+      "enterprise_knowledge": {
+        "all": {
+          "n": 94,
+          "passed": 35,
+          "pass_at_1_pct": 37.23,
+          "total_cost_usd": 1.010027,
+          "mean_cost_usd": 0.010745,
+          "p50_ms": 18298.76,
+          "p90_ms": 61223.85,
+          "thoughts_pct": 46.0,
+          "mean_turns": 1.14
+        },
+        "baseline": {
+          "n": 40,
+          "passed": 13,
+          "pass_at_1_pct": 32.5,
+          "total_cost_usd": 0.342066,
+          "mean_cost_usd": 0.008552,
+          "p50_ms": 16790.79,
+          "p90_ms": 49683.99,
+          "thoughts_pct": 43.98,
+          "mean_turns": 1.0
+        },
+        "quadgate": {
+          "n": 54,
+          "passed": 22,
+          "pass_at_1_pct": 40.74,
+          "total_cost_usd": 0.667961,
+          "mean_cost_usd": 0.01237,
+          "p50_ms": 20026.5,
+          "p90_ms": 66195.95,
+          "thoughts_pct": 47.18,
+          "mean_turns": 1.24
+        },
+        "by_model": {
+          "gemini-3.1-flash-lite": {
+            "baseline": {
+              "n": 12,
+              "passed": 0,
+              "pass_at_1_pct": 0.0,
+              "total_cost_usd": 0.007219,
+              "mean_cost_usd": 0.000602,
+              "p50_ms": 1709.33,
+              "p90_ms": 3378.48,
+              "thoughts_pct": 0.0,
+              "mean_turns": 1.0
+            },
+            "quadgate": {
+              "n": 12,
+              "passed": 0,
+              "pass_at_1_pct": 0.0,
+              "total_cost_usd": 0.010686,
+              "mean_cost_usd": 0.00089,
+              "p50_ms": 2269.87,
+              "p90_ms": 3239.15,
+              "thoughts_pct": 0.0,
+              "mean_turns": 1.33
+            }
+          },
+          "gemini-3.1-pro-preview": {
+            "baseline": {
+              "n": 0
+            },
+            "quadgate": {
+              "n": 1,
+              "passed": 0,
+              "pass_at_1_pct": 0.0,
+              "total_cost_usd": 0.020718,
+              "mean_cost_usd": 0.020718,
+              "p50_ms": 9284.88,
+              "p90_ms": 9284.88,
+              "thoughts_pct": 82.5,
+              "mean_turns": 1.0
+            }
+          },
+          "gemini-3.8-flash": {
+            "baseline": {
+              "n": 12,
+              "passed": 5,
+              "pass_at_1_pct": 41.67,
+              "total_cost_usd": 0.092243,
+              "mean_cost_usd": 0.007687,
+              "p50_ms": 16778.42,
+              "p90_ms": 19724.05,
+              "thoughts_pct": 53.45,
+              "mean_turns": 1.0
+            },
+            "quadgate": {
+              "n": 12,
+              "passed": 6,
+              "pass_at_1_pct": 50.0,
+              "total_cost_usd": 0.126964,
+              "mean_cost_usd": 0.01058,
+              "p50_ms": 17893.04,
+              "p90_ms": 35961.13,
+              "thoughts_pct": 53.3,
+              "mean_turns": 1.33
+            }
+          },
+          "gemini-4-carbon": {
+            "baseline": {
+              "n": 12,
+              "passed": 8,
+              "pass_at_1_pct": 66.67,
+              "total_cost_usd": 0.231456,
+              "mean_cost_usd": 0.019288,
+              "p50_ms": 35168.25,
+              "p90_ms": 42199.3,
+              "thoughts_pct": 37.39,
+              "mean_turns": 1.0
+            },
+            "quadgate": {
+              "n": 12,
+              "passed": 8,
+              "pass_at_1_pct": 66.67,
+              "total_cost_usd": 0.234574,
+              "mean_cost_usd": 0.019548,
+              "p50_ms": 30202.35,
+              "p90_ms": 64253.9,
+              "thoughts_pct": 48.81,
+              "mean_turns": 1.08
+            }
+          },
+          "gemini-4-hydrogen": {
+            "baseline": {
+              "n": 1,
+              "passed": 0,
+              "pass_at_1_pct": 0.0,
+              "total_cost_usd": 0.011148,
+              "mean_cost_usd": 0.011148,
+              "p50_ms": 6436.74,
+              "p90_ms": 6436.74,
+              "thoughts_pct": 43.44,
+              "mean_turns": 1.0
+            },
+            "quadgate": {
+              "n": 2,
+              "passed": 0,
+              "pass_at_1_pct": 0.0,
+              "total_cost_usd": 0.024327,
+              "mean_cost_usd": 0.012164,
+              "p50_ms": 8665.63,
+              "p90_ms": 8665.63,
+              "thoughts_pct": 46.4,
+              "mean_turns": 1.0
+            }
+          },
+          "gemma-4-31b-it": {
+            "baseline": {
+              "n": 3,
+              "passed": 0,
+              "pass_at_1_pct": 0.0,
+              "total_cost_usd": 0.0,
+              "mean_cost_usd": 0.0,
+              "p50_ms": 61223.85,
+              "p90_ms": 116101.93,
+              "thoughts_pct": 66.64,
+              "mean_turns": 1.0
+            },
+            "quadgate": {
+              "n": 3,
+              "passed": 1,
+              "pass_at_1_pct": 33.33,
+              "total_cost_usd": 0.0,
+              "mean_cost_usd": 0.0,
+              "p50_ms": 96680.75,
+              "p90_ms": 224935.9,
+              "thoughts_pct": 72.09,
+              "mean_turns": 1.67
+            }
+          },
+          "quadgate-ecc-router": {
+            "baseline": {
+              "n": 0
+            },
+            "quadgate": {
+              "n": 12,
+              "passed": 7,
+              "pass_at_1_pct": 58.33,
+              "total_cost_usd": 0.250692,
+              "mean_cost_usd": 0.020891,
+              "p50_ms": 33182.2,
+              "p90_ms": 66195.95,
+              "thoughts_pct": 37.06,
+              "mean_turns": 1.17
+            }
+          }
+        }
+      },
+      "gsm8k": {
+        "all": {
+          "n": 181,
+          "passed": 176,
+          "pass_at_1_pct": 97.24,
+          "total_cost_usd": 0.449366,
+          "mean_cost_usd": 0.002483,
+          "p50_ms": 6279.12,
+          "p90_ms": 46243.48,
+          "thoughts_pct": 54.9,
+          "mean_turns": 1.55
+        },
+        "baseline": {
+          "n": 78,
+          "passed": 76,
+          "pass_at_1_pct": 97.44,
+          "total_cost_usd": 0.094388,
+          "mean_cost_usd": 0.00121,
+          "p50_ms": 3298.84,
+          "p90_ms": 37077.59,
+          "thoughts_pct": 48.64,
+          "mean_turns": 1.0
+        },
+        "quadgate": {
+          "n": 103,
+          "passed": 100,
+          "pass_at_1_pct": 97.09,
+          "total_cost_usd": 0.354978,
+          "mean_cost_usd": 0.003446,
+          "p50_ms": 8715.58,
+          "p90_ms": 55412.86,
+          "thoughts_pct": 56.9,
+          "mean_turns": 1.97
+        },
+        "by_model": {
+          "gemini-3.1-flash-lite": {
+            "baseline": {
+              "n": 25,
+              "passed": 24,
+              "pass_at_1_pct": 96.0,
+              "total_cost_usd": 0.004391,
+              "mean_cost_usd": 0.000176,
+              "p50_ms": 846.24,
+              "p90_ms": 1398.32,
+              "thoughts_pct": 0.0,
+              "mean_turns": 1.0
+            },
+            "quadgate": {
+              "n": 25,
+              "passed": 24,
+              "pass_at_1_pct": 96.0,
+              "total_cost_usd": 0.009743,
+              "mean_cost_usd": 0.00039,
+              "p50_ms": 1922.92,
+              "p90_ms": 3408.94,
+              "thoughts_pct": 0.0,
+              "mean_turns": 2.0
+            }
+          },
+          "gemini-3.8-flash": {
+            "baseline": {
+              "n": 25,
+              "passed": 24,
+              "pass_at_1_pct": 96.0,
+              "total_cost_usd": 0.026573,
+              "mean_cost_usd": 0.001063,
+              "p50_ms": 3115.49,
+              "p90_ms": 4811.97,
+              "thoughts_pct": 63.4,
+              "mean_turns": 1.0
+            },
+            "quadgate": {
+              "n": 25,
+              "passed": 23,
+              "pass_at_1_pct": 92.0,
+              "total_cost_usd": 0.057994,
+              "mean_cost_usd": 0.00232,
+              "p50_ms": 6570.5,
+              "p90_ms": 10268.18,
+              "thoughts_pct": 65.23,
+              "mean_turns": 2.0
+            }
+          },
+          "gemini-4-carbon": {
+            "baseline": {
+              "n": 25,
+              "passed": 25,
+              "pass_at_1_pct": 100.0,
+              "total_cost_usd": 0.063424,
+              "mean_cost_usd": 0.002537,
+              "p50_ms": 14355.27,
+              "p90_ms": 46111.72,
+              "thoughts_pct": 47.89,
+              "mean_turns": 1.0
+            },
+            "quadgate": {
+              "n": 25,
+              "passed": 25,
+              "pass_at_1_pct": 100.0,
+              "total_cost_usd": 0.17859,
+              "mean_cost_usd": 0.007144,
+              "p50_ms": 34674.9,
+              "p90_ms": 76697.07,
+              "thoughts_pct": 61.81,
+              "mean_turns": 2.0
+            }
+          },
+          "gemma-4-31b-it": {
+            "baseline": {
+              "n": 3,
+              "passed": 3,
+              "pass_at_1_pct": 100.0,
+              "total_cost_usd": 0.0,
+              "mean_cost_usd": 0.0,
+              "p50_ms": 49030.84,
+              "p90_ms": 54410.39,
+              "thoughts_pct": 73.36,
+              "mean_turns": 1.0
+            },
+            "quadgate": {
+              "n": 3,
+              "passed": 3,
+              "pass_at_1_pct": 100.0,
+              "total_cost_usd": 0.000219,
+              "mean_cost_usd": 7.3e-05,
+              "p50_ms": 11868.1,
+              "p90_ms": 76005.6,
+              "thoughts_pct": 73.36,
+              "mean_turns": 1.0
+            }
+          },
+          "quadgate-ecc-router": {
+            "baseline": {
+              "n": 0
+            },
+            "quadgate": {
+              "n": 25,
+              "passed": 25,
+              "pass_at_1_pct": 100.0,
+              "total_cost_usd": 0.108432,
+              "mean_cost_usd": 0.004337,
+              "p50_ms": 21304.45,
+              "p90_ms": 55412.86,
+              "thoughts_pct": 62.73,
+              "mean_turns": 2.0
+            }
+          }
+        }
+      },
+      "humaneval_plus": {
+        "all": {
+          "n": 146,
+          "passed": 141,
+          "pass_at_1_pct": 96.58,
+          "total_cost_usd": 0.42443,
+          "mean_cost_usd": 0.002907,
+          "p50_ms": 8097.16,
+          "p90_ms": 33854.27,
+          "thoughts_pct": 63.46,
+          "mean_turns": 1.0
+        },
+        "baseline": {
+          "n": 63,
+          "passed": 61,
+          "pass_at_1_pct": 96.83,
+          "total_cost_usd": 0.186642,
+          "mean_cost_usd": 0.002963,
+          "p50_ms": 7081.81,
+          "p90_ms": 34465.99,
+          "thoughts_pct": 63.18,
+          "mean_turns": 1.0
+        },
+        "quadgate": {
+          "n": 83,
+          "passed": 80,
+          "pass_at_1_pct": 96.39,
+          "total_cost_usd": 0.237788,
+          "mean_cost_usd": 0.002865,
+          "p50_ms": 8910.88,
+          "p90_ms": 30221.67,
+          "thoughts_pct": 63.67,
+          "mean_turns": 1.0
+        },
+        "by_model": {
+          "gemini-3.1-flash-lite": {
+            "baseline": {
+              "n": 20,
+              "passed": 19,
+              "pass_at_1_pct": 95.0,
+              "total_cost_usd": 0.005288,
+              "mean_cost_usd": 0.000264,
+              "p50_ms": 1577.33,
+              "p90_ms": 3785.62,
+              "thoughts_pct": 0.0,
+              "mean_turns": 1.0
+            },
+            "quadgate": {
+              "n": 20,
+              "passed": 19,
+              "pass_at_1_pct": 95.0,
+              "total_cost_usd": 0.009686,
+              "mean_cost_usd": 0.000484,
+              "p50_ms": 3391.38,
+              "p90_ms": 7025.2,
+              "thoughts_pct": 0.0,
+              "mean_turns": 1.0
+            }
+          },
+          "gemini-3.8-flash": {
+            "baseline": {
+              "n": 20,
+              "passed": 20,
+              "pass_at_1_pct": 100.0,
+              "total_cost_usd": 0.050494,
+              "mean_cost_usd": 0.002525,
+              "p50_ms": 7408.79,
+              "p90_ms": 11246.23,
+              "thoughts_pct": 71.46,
+              "mean_turns": 1.0
+            },
+            "quadgate": {
+              "n": 20,
+              "passed": 20,
+              "pass_at_1_pct": 100.0,
+              "total_cost_usd": 0.061591,
+              "mean_cost_usd": 0.00308,
+              "p50_ms": 9163.1,
+              "p90_ms": 21370.26,
+              "thoughts_pct": 75.03,
+              "mean_turns": 1.0
+            }
+          },
+          "gemini-4-carbon": {
+            "baseline": {
+              "n": 20,
+              "passed": 19,
+              "pass_at_1_pct": 95.0,
+              "total_cost_usd": 0.13086,
+              "mean_cost_usd": 0.006543,
+              "p50_ms": 20540.01,
+              "p90_ms": 39586.67,
+              "thoughts_pct": 68.16,
+              "mean_turns": 1.0
+            },
+            "quadgate": {
+              "n": 20,
+              "passed": 19,
+              "pass_at_1_pct": 95.0,
+              "total_cost_usd": 0.134737,
+              "mean_cost_usd": 0.006737,
+              "p50_ms": 23065.76,
+              "p90_ms": 40640.16,
+              "thoughts_pct": 69.13,
+              "mean_turns": 1.0
+            }
+          },
+          "gemma-4-31b-it": {
+            "baseline": {
+              "n": 3,
+              "passed": 3,
+              "pass_at_1_pct": 100.0,
+              "total_cost_usd": 0.0,
+              "mean_cost_usd": 0.0,
+              "p50_ms": 36306.76,
+              "p90_ms": 64027.49,
+              "thoughts_pct": 71.11,
+              "mean_turns": 1.0
+            },
+            "quadgate": {
+              "n": 3,
+              "passed": 3,
+              "pass_at_1_pct": 100.0,
+              "total_cost_usd": 0.000583,
+              "mean_cost_usd": 0.000194,
+              "p50_ms": 54361.82,
+              "p90_ms": 73522.13,
+              "thoughts_pct": 71.66,
+              "mean_turns": 1.0
+            }
+          },
+          "quadgate-ecc-router": {
+            "baseline": {
+              "n": 0
+            },
+            "quadgate": {
+              "n": 20,
+              "passed": 19,
+              "pass_at_1_pct": 95.0,
+              "total_cost_usd": 0.031191,
+              "mean_cost_usd": 0.00156,
+              "p50_ms": 8097.16,
+              "p90_ms": 14478.42,
+              "thoughts_pct": 56.43,
+              "mean_turns": 1.0
+            }
+          }
+        }
+      },
+      "long_context_kv": {
+        "all": {
+          "n": 83,
+          "passed": 83,
+          "pass_at_1_pct": 100.0,
+          "total_cost_usd": 8.441153,
+          "mean_cost_usd": 0.101701,
+          "p50_ms": 26346.92,
+          "p90_ms": 69465.53,
+          "thoughts_pct": 74.94,
+          "mean_turns": 5.0
+        },
+        "baseline": {
+          "n": 42,
+          "passed": 42,
+          "pass_at_1_pct": 100.0,
+          "total_cost_usd": 6.19505,
+          "mean_cost_usd": 0.147501,
+          "p50_ms": 27575.96,
+          "p90_ms": 70628.29,
+          "thoughts_pct": 77.4,
+          "mean_turns": 5.0
+        },
+        "quadgate": {
+          "n": 41,
+          "passed": 41,
+          "pass_at_1_pct": 100.0,
+          "total_cost_usd": 2.246102,
+          "mean_cost_usd": 0.054783,
+          "p50_ms": 26346.92,
+          "p90_ms": 62311.91,
+          "thoughts_pct": 71.77,
+          "mean_turns": 5.0
+        },
+        "by_model": {
+          "gemini-3.1-flash-lite": {
+            "baseline": {
+              "n": 6,
+              "passed": 6,
+              "pass_at_1_pct": 100.0,
+              "total_cost_usd": 0.129999,
+              "mean_cost_usd": 0.021666,
+              "p50_ms": 6481.69,
+              "p90_ms": 22199.21,
+              "thoughts_pct": 0.0,
+              "mean_turns": 5.0
+            },
+            "quadgate": {
+              "n": 6,
+              "passed": 6,
+              "pass_at_1_pct": 100.0,
+              "total_cost_usd": 0.056877,
+              "mean_cost_usd": 0.009479,
+              "p50_ms": 8066.04,
+              "p90_ms": 21906.83,
+              "thoughts_pct": 0.0,
+              "mean_turns": 5.0
+            }
+          },
+          "gemini-3.1-pro-preview": {
+            "baseline": {
+              "n": 6,
+              "passed": 6,
+              "pass_at_1_pct": 100.0,
+              "total_cost_usd": 1.149294,
+              "mean_cost_usd": 0.191549,
+              "p50_ms": 97377.13,
+              "p90_ms": 114809.38,
+              "thoughts_pct": 89.58,
+              "mean_turns": 5.0
+            },
+            "quadgate": {
+              "n": 6,
+              "passed": 6,
+              "pass_at_1_pct": 100.0,
+              "total_cost_usd": 0.549785,
+              "mean_cost_usd": 0.091631,
+              "p50_ms": 73267.47,
+              "p90_ms": 108740.21,
+              "thoughts_pct": 88.96,
+              "mean_turns": 5.0
+            }
+          },
+          "gemini-3.8-flash": {
+            "baseline": {
+              "n": 6,
+              "passed": 6,
+              "pass_at_1_pct": 100.0,
+              "total_cost_usd": 0.392266,
+              "mean_cost_usd": 0.065378,
+              "p50_ms": 16321.23,
+              "p90_ms": 29141.91,
+              "thoughts_pct": 80.08,
+              "mean_turns": 5.0
+            },
+            "quadgate": {
+              "n": 6,
+              "passed": 6,
+              "pass_at_1_pct": 100.0,
+              "total_cost_usd": 0.15741,
+              "mean_cost_usd": 0.026235,
+              "p50_ms": 21755.22,
+              "p90_ms": 26346.92,
+              "thoughts_pct": 69.36,
+              "mean_turns": 5.0
+            }
+          },
+          "gemini-4-argon": {
+            "baseline": {
+              "n": 6,
+              "passed": 6,
+              "pass_at_1_pct": 100.0,
+              "total_cost_usd": 1.037618,
+              "mean_cost_usd": 0.172936,
+              "p50_ms": 43416.62,
+              "p90_ms": 64544.27,
+              "thoughts_pct": 0.0,
+              "mean_turns": 5.0
+            },
+            "quadgate": {
+              "n": 6,
+              "passed": 6,
+              "pass_at_1_pct": 100.0,
+              "total_cost_usd": 0.354503,
+              "mean_cost_usd": 0.059084,
+              "p50_ms": 43339.03,
+              "p90_ms": 64596.12,
+              "thoughts_pct": 0.0,
+              "mean_turns": 5.0
+            }
+          },
+          "gemini-4-carbon": {
+            "baseline": {
+              "n": 6,
+              "passed": 6,
+              "pass_at_1_pct": 100.0,
+              "total_cost_usd": 1.051428,
+              "mean_cost_usd": 0.175238,
+              "p50_ms": 34605.3,
+              "p90_ms": 69465.53,
+              "thoughts_pct": 60.02,
+              "mean_turns": 5.0
+            },
+            "quadgate": {
+              "n": 6,
+              "passed": 6,
+              "pass_at_1_pct": 100.0,
+              "total_cost_usd": 0.360715,
+              "mean_cost_usd": 0.060119,
+              "p50_ms": 39851.13,
+              "p90_ms": 60439.79,
+              "thoughts_pct": 41.66,
+              "mean_turns": 5.0
+            }
+          },
+          "gemini-4-hydrogen": {
+            "baseline": {
+              "n": 6,
+              "passed": 6,
+              "pass_at_1_pct": 100.0,
+              "total_cost_usd": 0.808329,
+              "mean_cost_usd": 0.134721,
+              "p50_ms": 19415.1,
+              "p90_ms": 24731.77,
+              "thoughts_pct": 81.02,
+              "mean_turns": 5.0
+            },
+            "quadgate": {
+              "n": 6,
+              "passed": 6,
+              "pass_at_1_pct": 100.0,
+              "total_cost_usd": 0.284511,
+              "mean_cost_usd": 0.047418,
+              "p50_ms": 18729.82,
+              "p90_ms": 27728.2,
+              "thoughts_pct": 72.61,
+              "mean_turns": 5.0
+            }
+          },
+          "gemini-4-neon": {
+            "baseline": {
+              "n": 6,
+              "passed": 6,
+              "pass_at_1_pct": 100.0,
+              "total_cost_usd": 1.626117,
+              "mean_cost_usd": 0.27102,
+              "p50_ms": 39288.63,
+              "p90_ms": 73760.43,
+              "thoughts_pct": 83.45,
+              "mean_turns": 5.0
+            },
+            "quadgate": {
+              "n": 5,
+              "passed": 5,
+              "pass_at_1_pct": 100.0,
+              "total_cost_usd": 0.482302,
+              "mean_cost_usd": 0.09646,
+              "p50_ms": 26574.68,
+              "p90_ms": 37307.86,
+              "thoughts_pct": 78.5,
+              "mean_turns": 5.0
+            }
+          }
+        }
+      },
+      "swe_agent": {
+        "all": {
+          "n": 62,
+          "passed": 23,
+          "pass_at_1_pct": 37.1,
+          "total_cost_usd": 0.364051,
+          "mean_cost_usd": 0.005872,
+          "p50_ms": 20650.39,
+          "p90_ms": 209889.83,
+          "thoughts_pct": 65.12,
+          "mean_turns": 5.6
+        },
+        "baseline": {
+          "n": 27,
+          "passed": 13,
+          "pass_at_1_pct": 48.15,
+          "total_cost_usd": 0.155697,
+          "mean_cost_usd": 0.005767,
+          "p50_ms": 30889.97,
+          "p90_ms": 255905.34,
+          "thoughts_pct": 63.31,
+          "mean_turns": 5.48
+        },
+        "quadgate": {
+          "n": 35,
+          "passed": 10,
+          "pass_at_1_pct": 28.57,
+          "total_cost_usd": 0.208354,
+          "mean_cost_usd": 0.005953,
+          "p50_ms": 17510.29,
+          "p90_ms": 196970.9,
+          "thoughts_pct": 66.55,
+          "mean_turns": 5.69
+        },
+        "by_model": {
+          "gemini-3.1-flash-lite": {
+            "baseline": {
+              "n": 8,
+              "passed": 5,
+              "pass_at_1_pct": 62.5,
+              "total_cost_usd": 0.014,
+              "mean_cost_usd": 0.00175,
+              "p50_ms": 7762.55,
+              "p90_ms": 13198.87,
+              "thoughts_pct": 0.0,
+              "mean_turns": 5.0
+            },
+            "quadgate": {
+              "n": 8,
+              "passed": 5,
+              "pass_at_1_pct": 62.5,
+              "total_cost_usd": 0.019967,
+              "mean_cost_usd": 0.002496,
+              "p50_ms": 10347.18,
+              "p90_ms": 14388.2,
+              "thoughts_pct": 0.0,
+              "mean_turns": 5.38
+            }
+          },
+          "gemini-3.8-flash": {
+            "baseline": {
+              "n": 8,
+              "passed": 2,
+              "pass_at_1_pct": 25.0,
+              "total_cost_usd": 0.063007,
+              "mean_cost_usd": 0.007876,
+              "p50_ms": 23495.9,
+              "p90_ms": 44195.49,
+              "thoughts_pct": 83.18,
+              "mean_turns": 5.88
+            },
+            "quadgate": {
+              "n": 8,
+              "passed": 1,
+              "pass_at_1_pct": 12.5,
+              "total_cost_usd": 0.038397,
+              "mean_cost_usd": 0.0048,
+              "p50_ms": 18392.87,
+              "p90_ms": 32030.64,
+              "thoughts_pct": 68.29,
+              "mean_turns": 6.0
+            }
+          },
+          "gemini-4-carbon": {
+            "baseline": {
+              "n": 8,
+              "passed": 3,
+              "pass_at_1_pct": 37.5,
+              "total_cost_usd": 0.07869,
+              "mean_cost_usd": 0.009836,
+              "p50_ms": 164975.01,
+              "p90_ms": 395719.56,
+              "thoughts_pct": 42.21,
+              "mean_turns": 5.88
+            },
+            "quadgate": {
+              "n": 8,
+              "passed": 0,
+              "pass_at_1_pct": 0.0,
+              "total_cost_usd": 0.077125,
+              "mean_cost_usd": 0.009641,
+              "p50_ms": 180050.1,
+              "p90_ms": 492562.36,
+              "thoughts_pct": 50.88,
+              "mean_turns": 6.0
+            }
+          },
+          "gemma-4-31b-it": {
+            "baseline": {
+              "n": 3,
+              "passed": 3,
+              "pass_at_1_pct": 100.0,
+              "total_cost_usd": 0.0,
+              "mean_cost_usd": 0.0,
+              "p50_ms": 209889.83,
+              "p90_ms": 272811.7,
+              "thoughts_pct": 76.44,
+              "mean_turns": 4.67
+            },
+            "quadgate": {
+              "n": 3,
+              "passed": 3,
+              "pass_at_1_pct": 100.0,
+              "total_cost_usd": 0.001279,
+              "mean_cost_usd": 0.000426,
+              "p50_ms": 212252.45,
+              "p90_ms": 246645.2,
+              "thoughts_pct": 79.27,
+              "mean_turns": 4.0
+            }
+          },
+          "quadgate-ecc-router": {
+            "baseline": {
+              "n": 0
+            },
+            "quadgate": {
+              "n": 8,
+              "passed": 1,
+              "pass_at_1_pct": 12.5,
+              "total_cost_usd": 0.071584,
+              "mean_cost_usd": 0.008948,
+              "p50_ms": 16383.43,
+              "p90_ms": 95167.57,
+              "thoughts_pct": 87.15,
+              "mean_turns": 6.0
+            }
+          }
+        }
+      }
+    },
+    "per_cartridge": {
+      "general_reasoning": {
+        "all": {
+          "n": 181,
+          "passed": 176,
+          "pass_at_1_pct": 97.24,
+          "total_cost_usd": 0.449366,
+          "mean_cost_usd": 0.002483,
+          "p50_ms": 6279.12,
+          "p90_ms": 46243.48,
+          "thoughts_pct": 54.9,
+          "mean_turns": 1.55
+        },
+        "baseline": {
+          "n": 78,
+          "passed": 76,
+          "pass_at_1_pct": 97.44,
+          "total_cost_usd": 0.094388,
+          "mean_cost_usd": 0.00121,
+          "p50_ms": 3298.84,
+          "p90_ms": 37077.59,
+          "thoughts_pct": 48.64,
+          "mean_turns": 1.0
+        },
+        "quadgate": {
+          "n": 103,
+          "passed": 100,
+          "pass_at_1_pct": 97.09,
+          "total_cost_usd": 0.354978,
+          "mean_cost_usd": 0.003446,
+          "p50_ms": 8715.58,
+          "p90_ms": 55412.86,
+          "thoughts_pct": 56.9,
+          "mean_turns": 1.97
+        },
+        "by_model": {
+          "gemini-3.1-flash-lite": {
+            "baseline": {
+              "n": 25,
+              "passed": 24,
+              "pass_at_1_pct": 96.0,
+              "total_cost_usd": 0.004391,
+              "mean_cost_usd": 0.000176,
+              "p50_ms": 846.24,
+              "p90_ms": 1398.32,
+              "thoughts_pct": 0.0,
+              "mean_turns": 1.0
+            },
+            "quadgate": {
+              "n": 25,
+              "passed": 24,
+              "pass_at_1_pct": 96.0,
+              "total_cost_usd": 0.009743,
+              "mean_cost_usd": 0.00039,
+              "p50_ms": 1922.92,
+              "p90_ms": 3408.94,
+              "thoughts_pct": 0.0,
+              "mean_turns": 2.0
+            }
+          },
+          "gemini-3.8-flash": {
+            "baseline": {
+              "n": 25,
+              "passed": 24,
+              "pass_at_1_pct": 96.0,
+              "total_cost_usd": 0.026573,
+              "mean_cost_usd": 0.001063,
+              "p50_ms": 3115.49,
+              "p90_ms": 4811.97,
+              "thoughts_pct": 63.4,
+              "mean_turns": 1.0
+            },
+            "quadgate": {
+              "n": 25,
+              "passed": 23,
+              "pass_at_1_pct": 92.0,
+              "total_cost_usd": 0.057994,
+              "mean_cost_usd": 0.00232,
+              "p50_ms": 6570.5,
+              "p90_ms": 10268.18,
+              "thoughts_pct": 65.23,
+              "mean_turns": 2.0
+            }
+          },
+          "gemini-4-carbon": {
+            "baseline": {
+              "n": 25,
+              "passed": 25,
+              "pass_at_1_pct": 100.0,
+              "total_cost_usd": 0.063424,
+              "mean_cost_usd": 0.002537,
+              "p50_ms": 14355.27,
+              "p90_ms": 46111.72,
+              "thoughts_pct": 47.89,
+              "mean_turns": 1.0
+            },
+            "quadgate": {
+              "n": 25,
+              "passed": 25,
+              "pass_at_1_pct": 100.0,
+              "total_cost_usd": 0.17859,
+              "mean_cost_usd": 0.007144,
+              "p50_ms": 34674.9,
+              "p90_ms": 76697.07,
+              "thoughts_pct": 61.81,
+              "mean_turns": 2.0
+            }
+          },
+          "gemma-4-31b-it": {
+            "baseline": {
+              "n": 3,
+              "passed": 3,
+              "pass_at_1_pct": 100.0,
+              "total_cost_usd": 0.0,
+              "mean_cost_usd": 0.0,
+              "p50_ms": 49030.84,
+              "p90_ms": 54410.39,
+              "thoughts_pct": 73.36,
+              "mean_turns": 1.0
+            },
+            "quadgate": {
+              "n": 3,
+              "passed": 3,
+              "pass_at_1_pct": 100.0,
+              "total_cost_usd": 0.000219,
+              "mean_cost_usd": 7.3e-05,
+              "p50_ms": 11868.1,
+              "p90_ms": 76005.6,
+              "thoughts_pct": 73.36,
+              "mean_turns": 1.0
+            }
+          },
+          "quadgate-ecc-router": {
+            "baseline": {
+              "n": 0
+            },
+            "quadgate": {
+              "n": 25,
+              "passed": 25,
+              "pass_at_1_pct": 100.0,
+              "total_cost_usd": 0.108432,
+              "mean_cost_usd": 0.004337,
+              "p50_ms": 21304.45,
+              "p90_ms": 55412.86,
+              "thoughts_pct": 62.73,
+              "mean_turns": 2.0
+            }
+          }
+        }
+      },
+      "software_engineering": {
+        "all": {
+          "n": 732,
+          "passed": 629,
+          "pass_at_1_pct": 85.93,
+          "total_cost_usd": 10.743401,
+          "mean_cost_usd": 0.014677,
+          "p50_ms": 11505.17,
+          "p90_ms": 64596.12,
+          "thoughts_pct": 75.99,
+          "mean_turns": 1.85
+        },
+        "baseline": {
+          "n": 350,
+          "passed": 296,
+          "pass_at_1_pct": 84.57,
+          "total_cost_usd": 7.226482,
+          "mean_cost_usd": 0.020647,
+          "p50_ms": 10500.45,
+          "p90_ms": 69610.78,
+          "thoughts_pct": 75.39,
+          "mean_turns": 1.83
+        },
+        "quadgate": {
+          "n": 382,
+          "passed": 333,
+          "pass_at_1_pct": 87.17,
+          "total_cost_usd": 3.516919,
+          "mean_cost_usd": 0.009207,
+          "p50_ms": 13523.18,
+          "p90_ms": 62311.91,
+          "thoughts_pct": 76.48,
+          "mean_turns": 1.87
+        },
+        "by_model": {
+          "gemini-3.1-flash-lite": {
+            "baseline": {
+              "n": 72,
+              "passed": 55,
+              "pass_at_1_pct": 76.39,
+              "total_cost_usd": 0.156334,
+              "mean_cost_usd": 0.002171,
+              "p50_ms": 1653.06,
+              "p90_ms": 7059.72,
+              "thoughts_pct": 0.0,
+              "mean_turns": 1.78
+            },
+            "quadgate": {
+              "n": 72,
+              "passed": 63,
+              "pass_at_1_pct": 87.5,
+              "total_cost_usd": 0.097041,
+              "mean_cost_usd": 0.001348,
+              "p50_ms": 3407.18,
+              "p90_ms": 10347.18,
+              "thoughts_pct": 0.0,
+              "mean_turns": 1.82
+            }
+          },
+          "gemini-3.1-pro-preview": {
+            "baseline": {
+              "n": 26,
+              "passed": 23,
+              "pass_at_1_pct": 88.46,
+              "total_cost_usd": 1.232138,
+              "mean_cost_usd": 0.04739,
+              "p50_ms": 14936.0,
+              "p90_ms": 97377.13,
+              "thoughts_pct": 88.25,
+              "mean_turns": 1.92
+            },
+            "quadgate": {
+              "n": 25,
+              "passed": 25,
+              "pass_at_1_pct": 100.0,
+              "total_cost_usd": 0.630914,
+              "mean_cost_usd": 0.025237,
+              "p50_ms": 21470.52,
+              "p90_ms": 73267.47,
+              "thoughts_pct": 88.2,
+              "mean_turns": 1.96
+            }
+          },
+          "gemini-3.8-flash": {
+            "baseline": {
+              "n": 72,
+              "passed": 58,
+              "pass_at_1_pct": 80.56,
+              "total_cost_usd": 0.644165,
+              "mean_cost_usd": 0.008947,
+              "p50_ms": 9930.83,
+              "p90_ms": 23495.9,
+              "thoughts_pct": 84.56,
+              "mean_turns": 1.88
+            },
+            "quadgate": {
+              "n": 72,
+              "passed": 58,
+              "pass_at_1_pct": 80.56,
+              "total_cost_usd": 0.414697,
+              "mean_cost_usd": 0.00576,
+              "p50_ms": 12150.41,
+              "p90_ms": 23198.92,
+              "thoughts_pct": 84.32,
+              "mean_turns": 1.9
+            }
+          },
+          "gemini-4-argon": {
+            "baseline": {
+              "n": 26,
+              "passed": 24,
+              "pass_at_1_pct": 92.31,
+              "total_cost_usd": 1.066812,
+              "mean_cost_usd": 0.041031,
+              "p50_ms": 7871.33,
+              "p90_ms": 43416.62,
+              "thoughts_pct": 22.35,
+              "mean_turns": 1.92
+            },
+            "quadgate": {
+              "n": 21,
+              "passed": 21,
+              "pass_at_1_pct": 100.0,
+              "total_cost_usd": 0.377177,
+              "mean_cost_usd": 0.017961,
+              "p50_ms": 11929.39,
+              "p90_ms": 43339.03,
+              "thoughts_pct": 23.46,
+              "mean_turns": 2.14
+            }
+          },
+          "gemini-4-carbon": {
+            "baseline": {
+              "n": 72,
+              "passed": 62,
+              "pass_at_1_pct": 86.11,
+              "total_cost_usd": 1.452018,
+              "mean_cost_usd": 0.020167,
+              "p50_ms": 19391.68,
+              "p90_ms": 87886.64,
+              "thoughts_pct": 71.86,
+              "mean_turns": 1.88
+            },
+            "quadgate": {
+              "n": 72,
+              "passed": 59,
+              "pass_at_1_pct": 81.94,
+              "total_cost_usd": 0.793916,
+              "mean_cost_usd": 0.011027,
+              "p50_ms": 23283.26,
+              "p90_ms": 89777.46,
+              "thoughts_pct": 74.24,
+              "mean_turns": 1.9
+            }
+          },
+          "gemini-4-hydrogen": {
+            "baseline": {
+              "n": 24,
+              "passed": 23,
+              "pass_at_1_pct": 95.83,
+              "total_cost_usd": 0.868374,
+              "mean_cost_usd": 0.036182,
+              "p50_ms": 6365.78,
+              "p90_ms": 19415.1,
+              "thoughts_pct": 85.54,
+              "mean_turns": 2.0
+            },
+            "quadgate": {
+              "n": 25,
+              "passed": 25,
+              "pass_at_1_pct": 100.0,
+              "total_cost_usd": 0.348605,
+              "mean_cost_usd": 0.013944,
+              "p50_ms": 7336.97,
+              "p90_ms": 18729.82,
+              "thoughts_pct": 83.67,
+              "mean_turns": 1.96
+            }
+          },
+          "gemini-4-neon": {
+            "baseline": {
+              "n": 25,
+              "passed": 24,
+              "pass_at_1_pct": 96.0,
+              "total_cost_usd": 1.806642,
+              "mean_cost_usd": 0.072266,
+              "p50_ms": 17256.05,
+              "p90_ms": 39288.63,
+              "thoughts_pct": 88.57,
+              "mean_turns": 1.96
+            },
+            "quadgate": {
+              "n": 20,
+              "passed": 20,
+              "pass_at_1_pct": 100.0,
+              "total_cost_usd": 0.622744,
+              "mean_cost_usd": 0.031137,
+              "p50_ms": 22407.71,
+              "p90_ms": 32849.51,
+              "thoughts_pct": 88.1,
+              "mean_turns": 2.0
+            }
+          },
+          "gemma-4-31b-it": {
+            "baseline": {
+              "n": 33,
+              "passed": 27,
+              "pass_at_1_pct": 81.82,
+              "total_cost_usd": 0.0,
+              "mean_cost_usd": 0.0,
+              "p50_ms": 92815.42,
+              "p90_ms": 209889.83,
+              "thoughts_pct": 76.56,
+              "mean_turns": 1.33
+            },
+            "quadgate": {
+              "n": 33,
+              "passed": 33,
+              "pass_at_1_pct": 100.0,
+              "total_cost_usd": 0.002778,
+              "mean_cost_usd": 8.4e-05,
+              "p50_ms": 101408.95,
+              "p90_ms": 188244.19,
+              "thoughts_pct": 77.7,
+              "mean_turns": 1.27
+            }
+          },
+          "quadgate-ecc-router": {
+            "baseline": {
+              "n": 0
+            },
+            "quadgate": {
+              "n": 42,
+              "passed": 29,
+              "pass_at_1_pct": 69.05,
+              "total_cost_usd": 0.229047,
+              "mean_cost_usd": 0.005453,
+              "p50_ms": 10386.94,
+              "p90_ms": 21499.79,
+              "thoughts_pct": 82.84,
+              "mean_turns": 2.0
+            }
+          }
+        }
+      },
+      "knowledge_vault": {
+        "all": {
+          "n": 34,
+          "passed": 2,
+          "pass_at_1_pct": 5.88,
+          "total_cost_usd": 0.315806,
+          "mean_cost_usd": 0.009288,
+          "p50_ms": 16675.61,
+          "p90_ms": 52080.37,
+          "thoughts_pct": 49.2,
+          "mean_turns": 1.06
+        },
+        "baseline": {
+          "n": 14,
+          "passed": 0,
+          "pass_at_1_pct": 0.0,
+          "total_cost_usd": 0.113414,
+          "mean_cost_usd": 0.008101,
+          "p50_ms": 16778.42,
+          "p90_ms": 42029.08,
+          "thoughts_pct": 47.8,
+          "mean_turns": 1.0
+        },
+        "quadgate": {
+          "n": 20,
+          "passed": 2,
+          "pass_at_1_pct": 10.0,
+          "total_cost_usd": 0.202392,
+          "mean_cost_usd": 0.01012,
+          "p50_ms": 16675.61,
+          "p90_ms": 64272.58,
+          "thoughts_pct": 50.04,
+          "mean_turns": 1.1
+        },
+        "by_model": {
+          "gemini-3.1-flash-lite": {
+            "baseline": {
+              "n": 4,
+              "passed": 0,
+              "pass_at_1_pct": 0.0,
+              "total_cost_usd": 0.002244,
+              "mean_cost_usd": 0.000561,
+              "p50_ms": 2483.91,
+              "p90_ms": 4046.85,
+              "thoughts_pct": 0.0,
+              "mean_turns": 1.0
+            },
+            "quadgate": {
+              "n": 4,
+              "passed": 0,
+              "pass_at_1_pct": 0.0,
+              "total_cost_usd": 0.002182,
+              "mean_cost_usd": 0.000545,
+              "p50_ms": 1854.38,
+              "p90_ms": 2995.97,
+              "thoughts_pct": 0.0,
+              "mean_turns": 1.0
+            }
+          },
+          "gemini-3.1-pro-preview": {
+            "baseline": {
+              "n": 0
+            },
+            "quadgate": {
+              "n": 1,
+              "passed": 0,
+              "pass_at_1_pct": 0.0,
+              "total_cost_usd": 0.020718,
+              "mean_cost_usd": 0.020718,
+              "p50_ms": 9284.88,
+              "p90_ms": 9284.88,
+              "thoughts_pct": 82.5,
+              "mean_turns": 1.0
+            }
+          },
+          "gemini-3.8-flash": {
+            "baseline": {
+              "n": 4,
+              "passed": 0,
+              "pass_at_1_pct": 0.0,
+              "total_cost_usd": 0.026021,
+              "mean_cost_usd": 0.006505,
+              "p50_ms": 16778.42,
+              "p90_ms": 17595.25,
+              "thoughts_pct": 58.96,
+              "mean_turns": 1.0
+            },
+            "quadgate": {
+              "n": 4,
+              "passed": 1,
+              "pass_at_1_pct": 25.0,
+              "total_cost_usd": 0.036074,
+              "mean_cost_usd": 0.009018,
+              "p50_ms": 18298.76,
+              "p90_ms": 41019.64,
+              "thoughts_pct": 58.97,
+              "mean_turns": 1.25
+            }
+          },
+          "gemini-4-carbon": {
+            "baseline": {
+              "n": 4,
+              "passed": 0,
+              "pass_at_1_pct": 0.0,
+              "total_cost_usd": 0.074,
+              "mean_cost_usd": 0.0185,
+              "p50_ms": 37958.0,
+              "p90_ms": 42029.08,
+              "thoughts_pct": 44.36,
+              "mean_turns": 1.0
+            },
+            "quadgate": {
+              "n": 4,
+              "passed": 0,
+              "pass_at_1_pct": 0.0,
+              "total_cost_usd": 0.060196,
+              "mean_cost_usd": 0.015049,
+              "p50_ms": 28068.85,
+              "p90_ms": 52080.37,
+              "thoughts_pct": 36.47,
+              "mean_turns": 1.0
+            }
+          },
+          "gemini-4-hydrogen": {
+            "baseline": {
+              "n": 1,
+              "passed": 0,
+              "pass_at_1_pct": 0.0,
+              "total_cost_usd": 0.011148,
+              "mean_cost_usd": 0.011148,
+              "p50_ms": 6436.74,
+              "p90_ms": 6436.74,
+              "thoughts_pct": 43.44,
+              "mean_turns": 1.0
+            },
+            "quadgate": {
+              "n": 2,
+              "passed": 0,
+              "pass_at_1_pct": 0.0,
+              "total_cost_usd": 0.024327,
+              "mean_cost_usd": 0.012164,
+              "p50_ms": 8665.63,
+              "p90_ms": 8665.63,
+              "thoughts_pct": 46.4,
+              "mean_turns": 1.0
+            }
+          },
+          "gemma-4-31b-it": {
+            "baseline": {
+              "n": 1,
+              "passed": 0,
+              "pass_at_1_pct": 0.0,
+              "total_cost_usd": 0.0,
+              "mean_cost_usd": 0.0,
+              "p50_ms": 61223.85,
+              "p90_ms": 61223.85,
+              "thoughts_pct": 65.2,
+              "mean_turns": 1.0
+            },
+            "quadgate": {
+              "n": 1,
+              "passed": 1,
+              "pass_at_1_pct": 100.0,
+              "total_cost_usd": 0.0,
+              "mean_cost_usd": 0.0,
+              "p50_ms": 96680.75,
+              "p90_ms": 96680.75,
+              "thoughts_pct": 74.62,
+              "mean_turns": 2.0
+            }
+          },
+          "quadgate-ecc-router": {
+            "baseline": {
+              "n": 0
+            },
+            "quadgate": {
+              "n": 4,
+              "passed": 0,
+              "pass_at_1_pct": 0.0,
+              "total_cost_usd": 0.058896,
+              "mean_cost_usd": 0.014724,
+              "p50_ms": 45501.99,
+              "p90_ms": 64272.58,
+              "thoughts_pct": 40.01,
+              "mean_turns": 1.0
+            }
+          }
+        }
+      },
+      "financial_ops": {
+        "all": {
+          "n": 30,
+          "passed": 16,
+          "pass_at_1_pct": 53.33,
+          "total_cost_usd": 0.351492,
+          "mean_cost_usd": 0.011716,
+          "p50_ms": 19231.57,
+          "p90_ms": 105816.68,
+          "thoughts_pct": 55.42,
+          "mean_turns": 1.2
+        },
+        "baseline": {
+          "n": 13,
+          "passed": 6,
+          "pass_at_1_pct": 46.15,
+          "total_cost_usd": 0.112322,
+          "mean_cost_usd": 0.00864,
+          "p50_ms": 15364.11,
+          "p90_ms": 49683.99,
+          "thoughts_pct": 52.22,
+          "mean_turns": 1.0
+        },
+        "quadgate": {
+          "n": 17,
+          "passed": 10,
+          "pass_at_1_pct": 58.82,
+          "total_cost_usd": 0.239171,
+          "mean_cost_usd": 0.014069,
+          "p50_ms": 19951.62,
+          "p90_ms": 105816.68,
+          "thoughts_pct": 57.19,
+          "mean_turns": 1.35
+        },
+        "by_model": {
+          "gemini-3.1-flash-lite": {
+            "baseline": {
+              "n": 4,
+              "passed": 0,
+              "pass_at_1_pct": 0.0,
+              "total_cost_usd": 0.002324,
+              "mean_cost_usd": 0.000581,
+              "p50_ms": 1612.32,
+              "p90_ms": 1671.52,
+              "thoughts_pct": 0.0,
+              "mean_turns": 1.0
+            },
+            "quadgate": {
+              "n": 4,
+              "passed": 0,
+              "pass_at_1_pct": 0.0,
+              "total_cost_usd": 0.003889,
+              "mean_cost_usd": 0.000972,
+              "p50_ms": 2961.49,
+              "p90_ms": 3232.72,
+              "thoughts_pct": 0.0,
+              "mean_turns": 1.5
+            }
+          },
+          "gemini-3.8-flash": {
+            "baseline": {
+              "n": 4,
+              "passed": 2,
+              "pass_at_1_pct": 50.0,
+              "total_cost_usd": 0.033323,
+              "mean_cost_usd": 0.008331,
+              "p50_ms": 15364.11,
+              "p90_ms": 17325.64,
+              "thoughts_pct": 64.1,
+              "mean_turns": 1.0
+            },
+            "quadgate": {
+              "n": 4,
+              "passed": 2,
+              "pass_at_1_pct": 50.0,
+              "total_cost_usd": 0.039584,
+              "mean_cost_usd": 0.009896,
+              "p50_ms": 13842.55,
+              "p90_ms": 34924.99,
+              "thoughts_pct": 65.83,
+              "mean_turns": 1.25
+            }
+          },
+          "gemini-4-carbon": {
+            "baseline": {
+              "n": 4,
+              "passed": 4,
+              "pass_at_1_pct": 100.0,
+              "total_cost_usd": 0.076674,
+              "mean_cost_usd": 0.019169,
+              "p50_ms": 42199.3,
+              "p90_ms": 49683.99,
+              "thoughts_pct": 42.77,
+              "mean_turns": 1.0
+            },
+            "quadgate": {
+              "n": 4,
+              "passed": 4,
+              "pass_at_1_pct": 100.0,
+              "total_cost_usd": 0.10631,
+              "mean_cost_usd": 0.026578,
+              "p50_ms": 64253.9,
+              "p90_ms": 105816.68,
+              "thoughts_pct": 64.53,
+              "mean_turns": 1.25
+            }
+          },
+          "gemma-4-31b-it": {
+            "baseline": {
+              "n": 1,
+              "passed": 0,
+              "pass_at_1_pct": 0.0,
+              "total_cost_usd": 0.0,
+              "mean_cost_usd": 0.0,
+              "p50_ms": 116101.93,
+              "p90_ms": 116101.93,
+              "thoughts_pct": 69.08,
+              "mean_turns": 1.0
+            },
+            "quadgate": {
+              "n": 1,
+              "passed": 0,
+              "pass_at_1_pct": 0.0,
+              "total_cost_usd": 0.0,
+              "mean_cost_usd": 0.0,
+              "p50_ms": 224935.9,
+              "p90_ms": 224935.9,
+              "thoughts_pct": 73.05,
+              "mean_turns": 2.0
+            }
+          },
+          "quadgate-ecc-router": {
+            "baseline": {
+              "n": 0
+            },
+            "quadgate": {
+              "n": 4,
+              "passed": 4,
+              "pass_at_1_pct": 100.0,
+              "total_cost_usd": 0.089388,
+              "mean_cost_usd": 0.022347,
+              "p50_ms": 32279.24,
+              "p90_ms": 89537.19,
+              "thoughts_pct": 43.13,
+              "mean_turns": 1.25
+            }
+          }
+        }
+      },
+      "legal_redline": {
+        "all": {
+          "n": 30,
+          "passed": 17,
+          "pass_at_1_pct": 56.67,
+          "total_cost_usd": 0.34273,
+          "mean_cost_usd": 0.011424,
+          "p50_ms": 23284.16,
+          "p90_ms": 60517.11,
+          "thoughts_pct": 33.43,
+          "mean_turns": 1.17
+        },
+        "baseline": {
+          "n": 13,
+          "passed": 7,
+          "pass_at_1_pct": 53.85,
+          "total_cost_usd": 0.116332,
+          "mean_cost_usd": 0.008949,
+          "p50_ms": 19724.05,
+          "p90_ms": 41624.44,
+          "thoughts_pct": 32.38,
+          "mean_turns": 1.0
+        },
+        "quadgate": {
+          "n": 17,
+          "passed": 10,
+          "pass_at_1_pct": 58.82,
+          "total_cost_usd": 0.226398,
+          "mean_cost_usd": 0.013318,
+          "p50_ms": 30202.35,
+          "p90_ms": 66195.95,
+          "thoughts_pct": 34.05,
+          "mean_turns": 1.29
+        },
+        "by_model": {
+          "gemini-3.1-flash-lite": {
+            "baseline": {
+              "n": 4,
+              "passed": 0,
+              "pass_at_1_pct": 0.0,
+              "total_cost_usd": 0.002651,
+              "mean_cost_usd": 0.000663,
+              "p50_ms": 1774.59,
+              "p90_ms": 3378.48,
+              "thoughts_pct": 0.0,
+              "mean_turns": 1.0
+            },
+            "quadgate": {
+              "n": 4,
+              "passed": 0,
+              "pass_at_1_pct": 0.0,
+              "total_cost_usd": 0.004615,
+              "mean_cost_usd": 0.001154,
+              "p50_ms": 3239.15,
+              "p90_ms": 4383.9,
+              "thoughts_pct": 0.0,
+              "mean_turns": 1.5
+            }
+          },
+          "gemini-3.8-flash": {
+            "baseline": {
+              "n": 4,
+              "passed": 3,
+              "pass_at_1_pct": 75.0,
+              "total_cost_usd": 0.032899,
+              "mean_cost_usd": 0.008225,
+              "p50_ms": 19724.05,
+              "p90_ms": 20494.8,
+              "thoughts_pct": 38.39,
+              "mean_turns": 1.0
+            },
+            "quadgate": {
+              "n": 4,
+              "passed": 3,
+              "pass_at_1_pct": 75.0,
+              "total_cost_usd": 0.051307,
+              "mean_cost_usd": 0.012827,
+              "p50_ms": 34698.75,
+              "p90_ms": 35961.13,
+              "thoughts_pct": 39.41,
+              "mean_turns": 1.5
+            }
+          },
+          "gemini-4-carbon": {
+            "baseline": {
+              "n": 4,
+              "passed": 4,
+              "pass_at_1_pct": 100.0,
+              "total_cost_usd": 0.080782,
+              "mean_cost_usd": 0.020195,
+              "p50_ms": 35168.25,
+              "p90_ms": 41624.44,
+              "thoughts_pct": 25.97,
+              "mean_turns": 1.0
+            },
+            "quadgate": {
+              "n": 4,
+              "passed": 4,
+              "pass_at_1_pct": 100.0,
+              "total_cost_usd": 0.068068,
+              "mean_cost_usd": 0.017017,
+              "p50_ms": 39190.0,
+              "p90_ms": 44388.58,
+              "thoughts_pct": 35.37,
+              "mean_turns": 1.0
+            }
+          },
+          "gemma-4-31b-it": {
+            "baseline": {
+              "n": 1,
+              "passed": 0,
+              "pass_at_1_pct": 0.0,
+              "total_cost_usd": 0.0,
+              "mean_cost_usd": 0.0,
+              "p50_ms": 60517.11,
+              "p90_ms": 60517.11,
+              "thoughts_pct": 64.3,
+              "mean_turns": 1.0
+            },
+            "quadgate": {
+              "n": 1,
+              "passed": 0,
+              "pass_at_1_pct": 0.0,
+              "total_cost_usd": 0.0,
+              "mean_cost_usd": 0.0,
+              "p50_ms": 96620.01,
+              "p90_ms": 96620.01,
+              "thoughts_pct": 64.63,
+              "mean_turns": 1.0
+            }
+          },
+          "quadgate-ecc-router": {
+            "baseline": {
+              "n": 0
+            },
+            "quadgate": {
+              "n": 4,
+              "passed": 3,
+              "pass_at_1_pct": 75.0,
+              "total_cost_usd": 0.102408,
+              "mean_cost_usd": 0.025602,
+              "p50_ms": 44688.02,
+              "p90_ms": 66195.95,
+              "thoughts_pct": 30.1,
+              "mean_turns": 1.25
+            }
+          }
+        }
+      }
+    },
+    "per_model": {
+      "gemini-3.1-flash-lite": {
+        "all": {
+          "n": 218,
+          "passed": 166,
+          "pass_at_1_pct": 76.15,
+          "total_cost_usd": 0.285414,
+          "mean_cost_usd": 0.001309,
+          "p50_ms": 1976.15,
+          "p90_ms": 7342.77,
+          "thoughts_pct": 0.0,
+          "mean_turns": 1.66
+        },
+        "baseline": {
+          "n": 109,
+          "passed": 79,
+          "pass_at_1_pct": 72.48,
+          "total_cost_usd": 0.167944,
+          "mean_cost_usd": 0.001541,
+          "p50_ms": 1511.72,
+          "p90_ms": 5948.12,
+          "thoughts_pct": 0.0,
+          "mean_turns": 1.51
+        },
+        "quadgate": {
+          "n": 109,
+          "passed": 87,
+          "pass_at_1_pct": 79.82,
+          "total_cost_usd": 0.11747,
+          "mean_cost_usd": 0.001078,
+          "p50_ms": 2868.19,
+          "p90_ms": 8336.69,
+          "thoughts_pct": 0.0,
+          "mean_turns": 1.81
+        }
+      },
+      "gemini-3.1-pro-preview": {
+        "all": {
+          "n": 52,
+          "passed": 48,
+          "pass_at_1_pct": 92.31,
+          "total_cost_usd": 1.88377,
+          "mean_cost_usd": 0.036226,
+          "p50_ms": 17604.07,
+          "p90_ms": 73267.47,
+          "thoughts_pct": 87.94,
+          "mean_turns": 1.92
+        },
+        "baseline": {
+          "n": 26,
+          "passed": 23,
+          "pass_at_1_pct": 88.46,
+          "total_cost_usd": 1.232138,
+          "mean_cost_usd": 0.04739,
+          "p50_ms": 14936.0,
+          "p90_ms": 97377.13,
+          "thoughts_pct": 88.25,
+          "mean_turns": 1.92
+        },
+        "quadgate": {
+          "n": 26,
+          "passed": 25,
+          "pass_at_1_pct": 96.15,
+          "total_cost_usd": 0.651632,
+          "mean_cost_usd": 0.025063,
+          "p50_ms": 21470.52,
+          "p90_ms": 73267.47,
+          "thoughts_pct": 87.66,
+          "mean_turns": 1.92
+        }
+      },
+      "gemini-3.8-flash": {
+        "all": {
+          "n": 218,
+          "passed": 174,
+          "pass_at_1_pct": 79.82,
+          "total_cost_usd": 1.362636,
+          "mean_cost_usd": 0.006251,
+          "p50_ms": 9904.23,
+          "p90_ms": 21999.68,
+          "thoughts_pct": 73.86,
+          "mean_turns": 1.72
+        },
+        "baseline": {
+          "n": 109,
+          "passed": 87,
+          "pass_at_1_pct": 79.82,
+          "total_cost_usd": 0.762981,
+          "mean_cost_usd": 0.007,
+          "p50_ms": 9092.51,
+          "p90_ms": 20360.51,
+          "thoughts_pct": 75.27,
+          "mean_turns": 1.58
+        },
+        "quadgate": {
+          "n": 109,
+          "passed": 87,
+          "pass_at_1_pct": 79.82,
+          "total_cost_usd": 0.599655,
+          "mean_cost_usd": 0.005501,
+          "p50_ms": 10551.1,
+          "p90_ms": 23407.62,
+          "thoughts_pct": 72.6,
+          "mean_turns": 1.86
+        }
+      },
+      "gemini-4-argon": {
+        "all": {
+          "n": 47,
+          "passed": 45,
+          "pass_at_1_pct": 95.74,
+          "total_cost_usd": 1.443988,
+          "mean_cost_usd": 0.030723,
+          "p50_ms": 8298.67,
+          "p90_ms": 43416.62,
+          "thoughts_pct": 22.84,
+          "mean_turns": 2.02
+        },
+        "baseline": {
+          "n": 26,
+          "passed": 24,
+          "pass_at_1_pct": 92.31,
+          "total_cost_usd": 1.066812,
+          "mean_cost_usd": 0.041031,
+          "p50_ms": 7871.33,
+          "p90_ms": 43416.62,
+          "thoughts_pct": 22.35,
+          "mean_turns": 1.92
+        },
+        "quadgate": {
+          "n": 21,
+          "passed": 21,
+          "pass_at_1_pct": 100.0,
+          "total_cost_usd": 0.377177,
+          "mean_cost_usd": 0.017961,
+          "p50_ms": 11929.39,
+          "p90_ms": 43339.03,
+          "thoughts_pct": 23.46,
+          "mean_turns": 2.14
+        }
+      },
+      "gemini-4-carbon": {
+        "all": {
+          "n": 218,
+          "passed": 187,
+          "pass_at_1_pct": 85.78,
+          "total_cost_usd": 2.953978,
+          "mean_cost_usd": 0.01355,
+          "p50_ms": 23411.87,
+          "p90_ms": 69610.78,
+          "thoughts_pct": 60.46,
+          "mean_turns": 1.71
+        },
+        "baseline": {
+          "n": 109,
+          "passed": 95,
+          "pass_at_1_pct": 87.16,
+          "total_cost_usd": 1.746898,
+          "mean_cost_usd": 0.016027,
+          "p50_ms": 20540.01,
+          "p90_ms": 69465.53,
+          "thoughts_pct": 56.78,
+          "mean_turns": 1.58
+        },
+        "quadgate": {
+          "n": 109,
+          "passed": 92,
+          "pass_at_1_pct": 84.4,
+          "total_cost_usd": 1.20708,
+          "mean_cost_usd": 0.011074,
+          "p50_ms": 26914.1,
+          "p90_ms": 82185.58,
+          "thoughts_pct": 63.56,
+          "mean_turns": 1.83
+        }
+      },
+      "gemini-4-hydrogen": {
+        "all": {
+          "n": 52,
+          "passed": 48,
+          "pass_at_1_pct": 92.31,
+          "total_cost_usd": 1.252454,
+          "mean_cost_usd": 0.024086,
+          "p50_ms": 6444.64,
+          "p90_ms": 18729.82,
+          "thoughts_pct": 77.94,
+          "mean_turns": 1.92
+        },
+        "baseline": {
+          "n": 25,
+          "passed": 23,
+          "pass_at_1_pct": 92.0,
+          "total_cost_usd": 0.879522,
+          "mean_cost_usd": 0.035181,
+          "p50_ms": 6365.78,
+          "p90_ms": 19415.1,
+          "thoughts_pct": 80.99,
+          "mean_turns": 1.96
+        },
+        "quadgate": {
+          "n": 27,
+          "passed": 25,
+          "pass_at_1_pct": 92.59,
+          "total_cost_usd": 0.372932,
+          "mean_cost_usd": 0.013812,
+          "p50_ms": 7336.97,
+          "p90_ms": 18729.82,
+          "thoughts_pct": 74.89,
+          "mean_turns": 1.89
+        }
+      },
+      "gemini-4-neon": {
+        "all": {
+          "n": 45,
+          "passed": 44,
+          "pass_at_1_pct": 97.78,
+          "total_cost_usd": 2.429386,
+          "mean_cost_usd": 0.053986,
+          "p50_ms": 18813.6,
+          "p90_ms": 33622.98,
+          "thoughts_pct": 88.37,
+          "mean_turns": 1.98
+        },
+        "baseline": {
+          "n": 25,
+          "passed": 24,
+          "pass_at_1_pct": 96.0,
+          "total_cost_usd": 1.806642,
+          "mean_cost_usd": 0.072266,
+          "p50_ms": 17256.05,
+          "p90_ms": 39288.63,
+          "thoughts_pct": 88.57,
+          "mean_turns": 1.96
+        },
+        "quadgate": {
+          "n": 20,
+          "passed": 20,
+          "pass_at_1_pct": 100.0,
+          "total_cost_usd": 0.622744,
+          "mean_cost_usd": 0.031137,
+          "p50_ms": 22407.71,
+          "p90_ms": 32849.51,
+          "thoughts_pct": 88.1,
+          "mean_turns": 2.0
+        }
+      },
+      "gemma-4-31b-it": {
+        "all": {
+          "n": 78,
+          "passed": 67,
+          "pass_at_1_pct": 85.9,
+          "total_cost_usd": 0.002998,
+          "mean_cost_usd": 3.8e-05,
+          "p50_ms": 93067.78,
+          "p90_ms": 209889.83,
+          "thoughts_pct": 75.19,
+          "mean_turns": 1.28
+        },
+        "baseline": {
+          "n": 39,
+          "passed": 30,
+          "pass_at_1_pct": 76.92,
+          "total_cost_usd": 0.0,
+          "mean_cost_usd": 0.0,
+          "p50_ms": 91736.29,
+          "p90_ms": 209889.83,
+          "thoughts_pct": 74.49,
+          "mean_turns": 1.28
+        },
+        "quadgate": {
+          "n": 39,
+          "passed": 37,
+          "pass_at_1_pct": 94.87,
+          "total_cost_usd": 0.002998,
+          "mean_cost_usd": 7.7e-05,
+          "p50_ms": 96680.75,
+          "p90_ms": 212252.45,
+          "thoughts_pct": 75.77,
+          "mean_turns": 1.28
+        }
+      },
+      "quadgate-ecc-router": {
+        "all": {
+          "n": 79,
+          "passed": 61,
+          "pass_at_1_pct": 77.22,
+          "total_cost_usd": 0.58817,
+          "mean_cost_usd": 0.007445,
+          "p50_ms": 15729.94,
+          "p90_ms": 60539.57,
+          "thoughts_pct": 66.7,
+          "mean_turns": 1.87
+        },
+        "baseline": {
+          "n": 0
+        },
+        "quadgate": {
+          "n": 79,
+          "passed": 61,
+          "pass_at_1_pct": 77.22,
+          "total_cost_usd": 0.58817,
+          "mean_cost_usd": 0.007445,
+          "p50_ms": 15729.94,
+          "p90_ms": 60539.57,
+          "thoughts_pct": 66.7,
+          "mean_turns": 1.87
+        }
+      }
+    },
+    "highlights": {
+      "option_1_swe_inversion": {
+        "flash_lite_pass_pct": 62.5,
+        "gemma_pass_pct": 100.0,
+        "carbon_baseline_pass_pct": 37.5,
+        "carbon_quadgate_pass_pct": 0.0
+      },
+      "bigcodebench_carbon_baseline_pass_pct": 78.57,
+      "humaneval_plus_flash_lite_pass_pct": 95.0,
+      "gsm8k_flash_lite_pass_pct": 96.0,
+      "enterprise_knowledge_cartridge_split": {
+        "knowledge_vault": {
+          "n": 34,
+          "passed": 2,
+          "pass_at_1_pct": 5.88,
+          "total_cost_usd": 0.315806,
+          "mean_cost_usd": 0.009288,
+          "p50_ms": 16675.61,
+          "p90_ms": 52080.37,
+          "thoughts_pct": 49.2,
+          "mean_turns": 1.06
+        },
+        "financial_ops": {
+          "n": 30,
+          "passed": 16,
+          "pass_at_1_pct": 53.33,
+          "total_cost_usd": 0.351492,
+          "mean_cost_usd": 0.011716,
+          "p50_ms": 19231.57,
+          "p90_ms": 105816.68,
+          "thoughts_pct": 55.42,
+          "mean_turns": 1.2
+        },
+        "legal_redline": {
+          "n": 30,
+          "passed": 17,
+          "pass_at_1_pct": 56.67,
+          "total_cost_usd": 0.34273,
+          "mean_cost_usd": 0.011424,
+          "p50_ms": 23284.16,
+          "p90_ms": 60517.11,
+          "thoughts_pct": 33.43,
+          "mean_turns": 1.17
+        }
+      }
+    }
+  },
+  "systems_comparison_ecc_79_tasks": {
+    "carbon": {
+      "display_name": "Fixed Carbon Baseline",
+      "pass_at_1_pct": {
+        "mean": 83.5313,
+        "std": 3.5484,
+        "p10": 78.481,
+        "p50": 83.5443,
+        "p90": 87.3418,
+        "ci_95": {
+          "ci_low": 75.9494,
+          "ci_high": 89.8734
+        }
+      },
+      "total_cost_usd": {
+        "mean": 0.6214,
+        "std": 0.049,
+        "p10": 0.5606,
+        "p50": 0.6185,
+        "p90": 0.6858,
+        "ci_95": {
+          "ci_low": 0.5328,
+          "ci_high": 0.7257
+        }
+      },
+      "cost_savings_vs_carbon_pct": {
+        "mean": 0.0,
+        "std": 0.0,
+        "p10": 0.0,
+        "p50": 0.0,
+        "p90": 0.0,
+        "ci_95": {
+          "ci_low": 0.0,
+          "ci_high": 0.0
+        }
+      },
+      "pass_delta_vs_carbon_pp": {
+        "mean": 0.0,
+        "std": 0.0,
+        "p10": 0.0,
+        "p50": 0.0,
+        "p90": 0.0,
+        "ci_95": {
+          "ci_low": 0.0,
+          "ci_high": 0.0
+        }
+      },
+      "raw_total_cost_usd": 0.62133,
+      "raw_pass_at_1_pct": 83.54,
+      "raw_passed_count": 66
+    },
+    "v11": {
+      "display_name": "v0.1.1 QG/ECC",
+      "pass_at_1_pct": {
+        "mean": 77.1971,
+        "std": 3.5918,
+        "p10": 72.1519,
+        "p50": 77.2152,
+        "p90": 82.2785,
+        "ci_95": {
+          "ci_low": 69.6203,
+          "ci_high": 83.5443
+        }
+      },
+      "total_cost_usd": {
+        "mean": 0.5885,
+        "std": 0.0746,
+        "p10": 0.4951,
+        "p50": 0.5839,
+        "p90": 0.6875,
+        "ci_95": {
+          "ci_low": 0.4557,
+          "ci_high": 0.7448
+        }
+      },
+      "cost_savings_vs_carbon_pct": {
+        "mean": 4.6913,
+        "std": 14.3567,
+        "p10": -14.2095,
+        "p50": 5.7606,
+        "p90": 22.3134,
+        "ci_95": {
+          "ci_low": -26.4238,
+          "ci_high": 29.4226
+        }
+      },
+      "pass_delta_vs_carbon_pp": {
+        "mean": -6.3342,
+        "std": 3.1482,
+        "p10": -10.1266,
+        "p50": -6.3291,
+        "p90": -2.5316,
+        "ci_95": {
+          "ci_low": -12.6582,
+          "ci_high": 0.0
+        }
+      },
+      "raw_total_cost_usd": 0.58817,
+      "raw_pass_at_1_pct": 77.22,
+      "raw_passed_count": 61
+    },
+    "v12": {
+      "display_name": "patched v0.1.2",
+      "pass_at_1_pct": {
+        "mean": 83.5032,
+        "std": 3.883,
+        "p10": 78.481,
+        "p50": 83.5443,
+        "p90": 88.6076,
+        "ci_95": {
+          "ci_low": 75.9494,
+          "ci_high": 91.1392
+        }
+      },
+      "total_cost_usd": {
+        "mean": 0.4168,
+        "std": 0.0876,
+        "p10": 0.3099,
+        "p50": 0.4065,
+        "p90": 0.5357,
+        "ci_95": {
+          "ci_low": 0.2797,
+          "ci_high": 0.6132
+        }
+      },
+      "cost_savings_vs_carbon_pct": {
+        "mean": 33.1027,
+        "std": 11.8958,
+        "p10": 16.9629,
+        "p50": 34.0304,
+        "p90": 48.074,
+        "ci_95": {
+          "ci_low": 7.6516,
+          "ci_high": 53.3646
+        }
+      },
+      "pass_delta_vs_carbon_pp": {
+        "mean": -0.028,
+        "std": 2.9247,
+        "p10": -3.7975,
+        "p50": 0.0,
+        "p90": 3.7975,
+        "ci_95": {
+          "ci_low": -6.3291,
+          "ci_high": 5.0633
+        }
+      },
+      "raw_total_cost_usd": 0.416499,
+      "raw_pass_at_1_pct": 83.54,
+      "raw_passed_count": 66
+    },
+    "oracle": {
+      "display_name": "Empirical Oracle ($0.3720, 84.8%)",
+      "pass_at_1_pct": {
+        "mean": 84.7735,
+        "std": 3.7786,
+        "p10": 79.7468,
+        "p50": 84.8101,
+        "p90": 89.8734,
+        "ci_95": {
+          "ci_low": 77.2152,
+          "ci_high": 92.4051
+        }
+      },
+      "total_cost_usd": {
+        "mean": 0.3721,
+        "std": 0.043,
+        "p10": 0.3186,
+        "p50": 0.3687,
+        "p90": 0.4293,
+        "ci_95": {
+          "ci_low": 0.297,
+          "ci_high": 0.4645
+        }
+      },
+      "cost_savings_vs_carbon_pct": {
+        "mean": 40.2244,
+        "std": 3.6132,
+        "p10": 35.5876,
+        "p50": 40.1917,
+        "p90": 44.8751,
+        "ci_95": {
+          "ci_low": 33.2329,
+          "ci_high": 47.4004
+        }
+      },
+      "pass_delta_vs_carbon_pp": {
+        "mean": 1.2423,
+        "std": 2.6593,
+        "p10": -2.5316,
+        "p50": 1.2658,
+        "p90": 5.0633,
+        "ci_95": {
+          "ci_low": -3.7975,
+          "ci_high": 6.3291
+        }
+      },
+      "raw_total_cost_usd": 0.372035,
+      "raw_pass_at_1_pct": 84.81,
+      "raw_passed_count": 67
+    },
+    "wave4": {
+      "display_name": "Wave-4 Stack",
+      "pass_at_1_pct": {
+        "mean": 86.0505,
+        "std": 3.4617,
+        "p10": 81.0127,
+        "p50": 86.0759,
+        "p90": 89.8734,
+        "ci_95": {
+          "ci_low": 78.481,
+          "ci_high": 92.4051
+        }
+      },
+      "total_cost_usd": {
+        "mean": 0.4738,
+        "std": 0.0915,
+        "p10": 0.3635,
+        "p50": 0.464,
+        "p90": 0.5969,
+        "ci_95": {
+          "ci_low": 0.3251,
+          "ci_high": 0.6797
+        }
+      },
+      "cost_savings_vs_carbon_pct": {
+        "mean": 23.941,
+        "std": 12.1397,
+        "p10": 7.7911,
+        "p50": 24.6959,
+        "p90": 39.0904,
+        "ci_95": {
+          "ci_low": -1.645,
+          "ci_high": 45.235
+        }
+      },
+      "pass_delta_vs_carbon_pp": {
+        "mean": 2.5192,
+        "std": 2.317,
+        "p10": 0.0,
+        "p50": 2.5316,
+        "p90": 5.0633,
+        "ci_95": {
+          "ci_low": -1.2658,
+          "ci_high": 7.5949
+        }
+      },
+      "raw_total_cost_usd": 0.473145,
+      "raw_pass_at_1_pct": 86.08,
+      "raw_passed_count": 68
+    }
+  },
+  "systems_comparison_all_109_tasks": {
+    "carbon": {
+      "display_name": "Fixed Carbon Baseline",
+      "pass_at_1_pct": {
+        "mean": 87.1601,
+        "std": 2.7235,
+        "p10": 83.4862,
+        "p50": 87.156,
+        "p90": 90.8257,
+        "ci_95": {
+          "ci_low": 81.6514,
+          "ci_high": 92.6606
+        }
+      },
+      "total_cost_usd": {
+        "mean": 1.7464,
+        "std": 0.0517,
+        "p10": 1.682,
+        "p50": 1.7438,
+        "p90": 1.8147,
+        "ci_95": {
+          "ci_low": 1.6536,
+          "ci_high": 1.8549
+        }
+      },
+      "cost_savings_vs_carbon_pct": {
+        "mean": 0.0,
+        "std": 0.0,
+        "p10": 0.0,
+        "p50": 0.0,
+        "p90": 0.0,
+        "ci_95": {
+          "ci_low": 0.0,
+          "ci_high": 0.0
+        }
+      },
+      "pass_delta_vs_carbon_pp": {
+        "mean": 0.0,
+        "std": 0.0,
+        "p10": 0.0,
+        "p50": 0.0,
+        "p90": 0.0,
+        "ci_95": {
+          "ci_low": 0.0,
+          "ci_high": 0.0
+        }
+      },
+      "raw_total_cost_usd": 1.746898,
+      "raw_pass_at_1_pct": 87.16,
+      "raw_passed_count": 95
+    },
+    "v11": {
+      "display_name": "v0.1.1 QG/ECC",
+      "pass_at_1_pct": {
+        "mean": 83.5169,
+        "std": 2.5964,
+        "p10": 79.8165,
+        "p50": 83.4862,
+        "p90": 87.156,
+        "ci_95": {
+          "ci_low": 77.9817,
+          "ci_high": 88.9908
+        }
+      },
+      "total_cost_usd": {
+        "mean": 1.0276,
+        "std": 0.0759,
+        "p10": 0.9331,
+        "p50": 1.0237,
+        "p90": 1.1281,
+        "ci_95": {
+          "ci_low": 0.892,
+          "ci_high": 1.187
+        }
+      },
+      "cost_savings_vs_carbon_pct": {
+        "mean": 41.1124,
+        "std": 4.6376,
+        "p10": 34.9829,
+        "p50": 41.4178,
+        "p90": 46.8672,
+        "ci_95": {
+          "ci_low": 31.188,
+          "ci_high": 49.3494
+        }
+      },
+      "pass_delta_vs_carbon_pp": {
+        "mean": -3.6432,
+        "std": 2.4453,
+        "p10": -6.422,
+        "p50": -3.6697,
+        "p90": -0.9174,
+        "ci_95": {
+          "ci_low": -8.2569,
+          "ci_high": 0.9174
+        }
+      },
+      "raw_total_cost_usd": 1.027696,
+      "raw_pass_at_1_pct": 83.49,
+      "raw_passed_count": 91
+    },
+    "v12": {
+      "display_name": "patched v0.1.2",
+      "pass_at_1_pct": {
+        "mean": 88.0905,
+        "std": 2.8182,
+        "p10": 84.4037,
+        "p50": 88.0734,
+        "p90": 91.7431,
+        "ci_95": {
+          "ci_low": 82.5688,
+          "ci_high": 93.578
+        }
+      },
+      "total_cost_usd": {
+        "mean": 0.856,
+        "std": 0.0888,
+        "p10": 0.7473,
+        "p50": 0.8462,
+        "p90": 0.9765,
+        "ci_95": {
+          "ci_low": 0.715,
+          "ci_high": 1.0528
+        }
+      },
+      "cost_savings_vs_carbon_pct": {
+        "mean": 51.0234,
+        "std": 4.4032,
+        "p10": 45.0598,
+        "p50": 51.417,
+        "p90": 56.4947,
+        "ci_95": {
+          "ci_low": 41.522,
+          "ci_high": 58.4655
+        }
+      },
+      "pass_delta_vs_carbon_pp": {
+        "mean": 0.9304,
+        "std": 2.3053,
+        "p10": -1.8349,
+        "p50": 0.9174,
+        "p90": 3.6697,
+        "ci_95": {
+          "ci_low": -3.6697,
+          "ci_high": 5.5046
+        }
+      },
+      "raw_total_cost_usd": 0.856024,
+      "raw_pass_at_1_pct": 88.07,
+      "raw_passed_count": 96
+    },
+    "oracle": {
+      "display_name": "Empirical Oracle ($0.3720, 84.8%)",
+      "pass_at_1_pct": {
+        "mean": 89.0041,
+        "std": 2.7326,
+        "p10": 85.3211,
+        "p50": 88.9908,
+        "p90": 92.6606,
+        "ci_95": {
+          "ci_low": 83.4862,
+          "ci_high": 94.4954
+        }
+      },
+      "total_cost_usd": {
+        "mean": 0.5072,
+        "std": 0.0458,
+        "p10": 0.4506,
+        "p50": 0.5041,
+        "p90": 0.568,
+        "ci_95": {
+          "ci_low": 0.4267,
+          "ci_high": 0.6046
+        }
+      },
+      "cost_savings_vs_carbon_pct": {
+        "mean": 70.9984,
+        "std": 1.9173,
+        "p10": 68.483,
+        "p50": 71.0669,
+        "p90": 73.4071,
+        "ci_95": {
+          "ci_low": 67.0677,
+          "ci_high": 74.5302
+        }
+      },
+      "pass_delta_vs_carbon_pp": {
+        "mean": 1.8439,
+        "std": 2.1402,
+        "p10": -0.9174,
+        "p50": 1.8349,
+        "p90": 4.5872,
+        "ci_95": {
+          "ci_low": -1.8349,
+          "ci_high": 6.422
+        }
+      },
+      "raw_total_cost_usd": 0.507722,
+      "raw_pass_at_1_pct": 88.99,
+      "raw_passed_count": 97
+    },
+    "wave4": {
+      "display_name": "Wave-4 Stack",
+      "pass_at_1_pct": {
+        "mean": 89.9294,
+        "std": 2.5282,
+        "p10": 86.2385,
+        "p50": 89.9083,
+        "p90": 93.578,
+        "ci_95": {
+          "ci_low": 84.4037,
+          "ci_high": 94.4954
+        }
+      },
+      "total_cost_usd": {
+        "mean": 0.609,
+        "std": 0.0925,
+        "p10": 0.4962,
+        "p50": 0.6002,
+        "p90": 0.7349,
+        "ci_95": {
+          "ci_low": 0.4561,
+          "ci_high": 0.8128
+        }
+      },
+      "cost_savings_vs_carbon_pct": {
+        "mean": 65.1919,
+        "std": 4.7273,
+        "p10": 58.81,
+        "p50": 65.5667,
+        "p90": 71.0072,
+        "ci_95": {
+          "ci_low": 54.9773,
+          "ci_high": 73.2668
+        }
+      },
+      "pass_delta_vs_carbon_pp": {
+        "mean": 2.7693,
+        "std": 1.9044,
+        "p10": 0.0,
+        "p50": 2.7523,
+        "p90": 5.5046,
+        "ci_95": {
+          "ci_low": -0.9174,
+          "ci_high": 6.422
+        }
+      },
+      "raw_total_cost_usd": 0.608833,
+      "raw_pass_at_1_pct": 89.91,
+      "raw_passed_count": 98
+    }
+  },
+  "runtime_seconds": 1.542
+}

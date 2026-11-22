@@ -24,6 +24,7 @@ from aiohttp import web
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 import quadgate.kernel.gates as _gates_mod
+from quadgate import __version__
 from quadgate.contracts import (
     CartridgeSpec,
     GateEvent,
@@ -44,7 +45,7 @@ from quadgate.kernel.calibration import CalibrationEngine
 from quadgate.kernel.gates import GateEngine, ThresholdConfig, TierModelConfig
 from quadgate.kernel.healing import SelfHealingEngine
 
-DAEMON_VERSION = "0.1.1"
+DAEMON_VERSION = __version__
 _CARTRIDGES_DIR = Path(__file__).resolve().parent.parent / "cartridges"
 _DEFAULT_LATENCY_WINDOW = 10_000
 

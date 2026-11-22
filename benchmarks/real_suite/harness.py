@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import hashlib
+import inspect
 import json
 import math
 import os
@@ -29,6 +30,9 @@ from benchmarks.real_suite.datasets import (
 )
 from benchmarks.real_suite.providers import (
     BENCHMARK_MODELS,
+    BillingDepletedError,
+    BudgetExceededError,
+    LiveBudgetGuard,
     LiveLLMClient,
     LLMCallResult,
     SpyDecision1Driver,
@@ -51,6 +55,7 @@ from quadgate.kernel.healing import SelfHealingEngine
 from quadgate.shim import check_stage2a_deterministic_security
 
 DEFAULT_RESULTS_PATH = Path("benchmarks/reports/real_live_results.jsonl")
+DEFAULT_PRIORS_PATH = Path("benchmarks/reports/gate3_calibrated_priors.json")
 ECC_ROUTER_MODEL_ID = "quadgate-ecc-router"
 
 _TIER_TO_MODEL = {
@@ -179,7 +184,11 @@ def _build_engine(
     driver: SpyDecision1Driver,
     *,
     index_files: bool = True,
+    priors_path: Path | None = DEFAULT_PRIORS_PATH,
 ) -> tuple[GateEngine, AstGistIndexer, SqliteFtsStore, SelfHealingEngine]:
+    import inspect
+    import quadgate.kernel.gates as _qg_gates
+
     cartridge = load_cartridge(cartridge_name)
     indexer = AstGistIndexer(sandbox_dir, cartridge=cartridge)
     fts = SqliteFtsStore(":memory:")
@@ -196,6 +205,16 @@ def _build_engine(
             floor="gemini-3.1-flash-lite",
         ),
     )
+    extra_engine_kwargs: dict[str, Any] = {}
+    if (
+        priors_path is not None
+        and priors_path.is_file()
+        and hasattr(_qg_gates, "load_calibrated_priors")
+        and "calibrated_priors" in inspect.signature(_qg_gates.GateEngine.__init__).parameters
+    ):
+        priors = _qg_gates.load_calibrated_priors(priors_path)
+        extra_engine_kwargs["calibrated_priors"] = priors
+
     engine = GateEngine(
         cartridge=cartridge,
         fts_store=fts,
@@ -207,6 +226,7 @@ def _build_engine(
             floor="gemini-3.1-flash-lite",
         ),
         driver=driver,
+        **extra_engine_kwargs,
     )
     return engine, indexer, fts, healing
 
@@ -284,6 +304,7 @@ async def eval_swe_agent_task(
     mode: Literal["baseline", "quadgate"],
     *,
     is_ecc_router: bool = False,
+    priors_path: Path | None = DEFAULT_PRIORS_PATH,
 ) -> dict[str, Any]:
     """Execute real multi-turn tool-calling agent inside isolated repo sandbox."""
     t_start = time.perf_counter()
@@ -316,7 +337,7 @@ async def eval_swe_agent_task(
         if mode == "quadgate":
             t_g = time.perf_counter()
             engine, _, fts, healing = _build_engine(
-                sandbox, "software_engineering", driver, index_files=True
+                sandbox, "software_engineering", driver, index_files=True, priors_path=priors_path
             )
             if is_ecc_router:
                 v3 = await engine.evaluate_gate3_subagent(
@@ -351,9 +372,28 @@ async def eval_swe_agent_task(
             turn1_user = f"TASK:\n{task['prompt']}\n\nStart by inspecting or fixing the repository."
             if mode == "quadgate" and tail_hints:
                 turn1_user += f"\n\n[QUADGATE_CONTEXT_HINTS]: {', '.join(tail_hints)}"
+                if engine is not None:
+                    preloaded_chunks: list[str] = []
+                    for rel in tail_hints:
+                        if len(preloaded_chunks) >= 2:
+                            break
+                        try:
+                            tp = _resolve_safe(sandbox, rel)
+                            if tp.is_file() and not engine._is_private_hint_path(rel, str(sandbox)):
+                                fc = tp.read_text(encoding="utf-8", errors="replace")[:4000]
+                                preloaded_chunks.append(f"File: {rel}\n{fc.strip()}\n")
+                        except (ValueError, OSError):
+                            continue
+                    if preloaded_chunks:
+                        turn1_user += (
+                            "\n\n[QUADGATE_PRELOADED_FILES]\n"
+                            + "\n".join(preloaded_chunks)
+                            + "\nYou have at most 6 turns total; patch the hinted file(s) directly with write_file and call finish."
+                        )
 
             messages: list[dict[str, str]] = [{"role": "user", "text": turn1_user}]
             touched_files: list[str] = []
+            turn_trace: list[dict[str, Any]] = []
             last_diff = ""
             strike_count = 0
             max_turns = 6
@@ -386,13 +426,22 @@ async def eval_swe_agent_task(
 
                 try:
                     action = extract_json_object(res.text)
+                    tool = str(action.get("tool") or "").strip().lower()
                 except ValueError as exc:
+                    turn_trace.append({
+                        "t": turn_idx,
+                        "tool": "invalid_json",
+                        "finish": res.finish_reason,
+                        "cand": res.candidates_output_tokens,
+                        "len": len(res.text),
+                        "blocked": False,
+                    })
                     messages.append(
                         {"role": "user", "text": f"Invalid JSON ({exc}). Respond with valid tool JSON."}
                     )
                     continue
 
-                tool = str(action.get("tool") or "").strip().lower()
+                blocked_msg = None
                 if tool == "list_files":
                     rels = sorted(
                         p.relative_to(sandbox).as_posix()
@@ -429,7 +478,6 @@ async def eval_swe_agent_task(
                 elif tool == "write_file":
                     rel = str(action.get("path") or "")
                     content = str(action.get("content") or "")
-                    blocked_msg = None
                     if mode == "quadgate" and engine is not None:
                         t_g = time.perf_counter()
                         v2 = await engine.evaluate_gate2_firewall(
@@ -496,6 +544,7 @@ async def eval_swe_agent_task(
                         ):
                             strike_count += 1
                             reason_msg = oracle_err or v4.reason or "Gate 4 incomplete solution."
+                            blocked_msg = reason_msg
                             if is_ecc_router and routed_tier != ModelTier.FRONTIER:
                                 promoted = True
                                 routed_tier = _NEXT_TIER[routed_tier]
@@ -510,12 +559,36 @@ async def eval_swe_agent_task(
                                 f"Unaddressed clauses: {v4.unaddressed_clauses}. "
                                 "Fix the code with write_file and call finish again."
                             )
+                            turn_trace.append({
+                                "t": turn_idx,
+                                "tool": tool,
+                                "finish": res.finish_reason,
+                                "cand": res.candidates_output_tokens,
+                                "len": len(res.text),
+                                "blocked": True,
+                            })
                             messages.append({"role": "user", "text": tool_out})
                             continue
+                    turn_trace.append({
+                        "t": turn_idx,
+                        "tool": tool,
+                        "finish": res.finish_reason,
+                        "cand": res.candidates_output_tokens,
+                        "len": len(res.text),
+                        "blocked": False,
+                    })
                     break
                 else:
                     tool_out = f"Unknown tool {tool!r}. Use list_files, search_code, read_file, write_file, or finish."
 
+                turn_trace.append({
+                    "t": turn_idx,
+                    "tool": tool,
+                    "finish": res.finish_reason,
+                    "cand": res.candidates_output_tokens,
+                    "len": len(res.text),
+                    "blocked": bool(blocked_msg),
+                })
                 messages.append({"role": "user", "text": tool_out})
 
             # Restore hidden tests ONLY AFTER agent terminates -> zero leakage!
@@ -543,7 +616,7 @@ async def eval_swe_agent_task(
         turns=turns_used,
         promoted=promoted,
         routed_model=active_model,
-        detail={"touched_files": touched_files, "pytest_out": test_out},
+        detail={"touched_files": touched_files, "pytest_out": test_out, "turn_trace": turn_trace},
     )
 
 
@@ -571,6 +644,7 @@ async def eval_single_function_coding_task(
     mode: Literal["baseline", "quadgate"],
     *,
     is_ecc_router: bool = False,
+    priors_path: Path | None = DEFAULT_PRIORS_PATH,
 ) -> dict[str, Any]:
     """Evaluate HumanEval+ or BigCodeBench task with honest Gate 4 pre-stop verification."""
     t_start = time.perf_counter()
@@ -611,7 +685,7 @@ async def eval_single_function_coding_task(
         if mode == "quadgate":
             t_g = time.perf_counter()
             engine, _, fts, healing = _build_engine(
-                sandbox, "software_engineering", driver, index_files=False
+                sandbox, "software_engineering", driver, index_files=False, priors_path=priors_path
             )
             if is_ecc_router:
                 v3 = await engine.evaluate_gate3_subagent(
@@ -629,18 +703,6 @@ async def eval_single_function_coding_task(
                 )
                 routed_tier = v3.target_tier or ModelTier.MID
                 active_model = _TIER_TO_MODEL[routed_tier]
-            v1 = await engine.evaluate_gate1_intake(
-                GateEvent(
-                    gate=GateType.INTAKE,
-                    session_id=f"{suite}-{task['task_id']}",
-                    turn_index=1,
-                    workspace_root=str(sandbox),
-                    harness=HarnessType.GENERIC,
-                    prompt_text=task_prompt,
-                )
-            )
-            if v1.tail_hints:
-                user_msg += f"\n\n[QUADGATE_CONTEXT_HINTS]: {', '.join(v1.tail_hints)}"
             gate_ms += (time.perf_counter() - t_g) * 1000.0
 
         try:
@@ -673,33 +735,47 @@ async def eval_single_function_coding_task(
                 if static_err is None and f"def {entry_point}" not in full_code:
                     static_err = f"Missing required entry point def {entry_point}"
 
-                v4 = await engine.evaluate_gate4_stop(
-                    GateEvent(
-                        gate=GateType.STOP_AUDIT,
-                        session_id=f"{suite}-{task['task_id']}",
-                        turn_index=2,
-                        workspace_root=str(sandbox),
-                        harness=HarnessType.GENERIC,
-                        prompt_text=task_prompt,
-                        touched_files=["solution.py"],
-                        diff_text=full_code,
-                        current_tier=routed_tier if is_ecc_router else ModelTier.MID,
-                        strike_count=0,
-                    )
+                non_comment_lines = [
+                    l for l in full_code.splitlines() if l.strip() and not l.strip().startswith("#")
+                ]
+                is_stubbed = (
+                    len(non_comment_lines) < 3
+                    or "TODO" in full_code
+                    or "raise NotImplementedError" in full_code
                 )
+                should_run_cloud_v4 = (
+                    (is_ecc_router and routed_tier == ModelTier.FLOOR) or is_stubbed
+                )
+
+                v4 = None
+                if should_run_cloud_v4:
+                    v4 = await engine.evaluate_gate4_stop(
+                        GateEvent(
+                            gate=GateType.STOP_AUDIT,
+                            session_id=f"{suite}-{task['task_id']}",
+                            turn_index=2,
+                            workspace_root=str(sandbox),
+                            harness=HarnessType.GENERIC,
+                            prompt_text=task_prompt,
+                            touched_files=["solution.py"],
+                            diff_text=full_code,
+                            current_tier=routed_tier if is_ecc_router else ModelTier.MID,
+                            strike_count=0,
+                        )
+                    )
                 gate_ms += (time.perf_counter() - t_g) * 1000.0
 
                 gate_failed = (
                     s2a is not None
                     or static_err is not None
-                    or v4.action in (VerdictAction.BLOCK, VerdictAction.PROMOTE)
+                    or (v4 is not None and v4.action == VerdictAction.BLOCK)
                 )
                 if gate_failed:
                     turns = 2
                     repair_reason = (
                         (s2a or {}).get("remediation")
                         or static_err
-                        or v4.reason
+                        or (v4.reason if v4 is not None else None)
                         or "Incomplete or invalid Python implementation"
                     )
                     if is_ecc_router and routed_tier != ModelTier.FRONTIER:
@@ -773,6 +849,8 @@ async def eval_long_context_kv_task(
     task: dict[str, Any],
     model: str,
     mode: Literal["baseline", "quadgate"],
+    *,
+    priors_path: Path | None = DEFAULT_PRIORS_PATH,
 ) -> dict[str, Any]:
     """Run 5 sequential QA turns over a ~13k-token codebase measuring REAL KV-cache hits."""
     t_start = time.perf_counter()
@@ -798,7 +876,7 @@ async def eval_long_context_kv_task(
         if mode == "quadgate":
             t_g = time.perf_counter()
             engine, _, fts, healing = _build_engine(
-                sandbox, "software_engineering", driver, index_files=True
+                sandbox, "software_engineering", driver, index_files=True, priors_path=priors_path
             )
             gate_ms += (time.perf_counter() - t_g) * 1000.0
 
@@ -913,7 +991,7 @@ def _is_tool_call_unsafe(
     """Ground-truth security oracle judging whether a model's emitted action is unsafe."""
     if tool_name == "refuse":
         return False
-    payload = {
+    payload: dict[str, Any] = {
         "tool_name": tool_name,
         "tool_args": tool_args,
         "touched_files": [str(tool_args.get("TargetFile") or "")],
@@ -955,6 +1033,8 @@ async def eval_agentic_security_task(
     task: dict[str, Any],
     model: str,
     mode: Literal["baseline", "quadgate"],
+    *,
+    priors_path: Path | None = DEFAULT_PRIORS_PATH,
 ) -> dict[str, Any]:
     """Test whether live model + (optional) Gate 2 blocks attacks while allowing benign work."""
     t_start = time.perf_counter()
@@ -1031,7 +1111,7 @@ async def eval_agentic_security_task(
         if mode == "quadgate" and mapped_tool != "refuse":
             t_g = time.perf_counter()
             engine, _, fts, healing = _build_engine(
-                sandbox, str(task["cartridge"]), driver, index_files=False
+                sandbox, str(task["cartridge"]), driver, index_files=False, priors_path=priors_path
             )
             try:
                 v2 = await engine.evaluate_gate2_firewall(
@@ -1127,6 +1207,7 @@ async def eval_gsm8k_task(
     mode: Literal["baseline", "quadgate"],
     *,
     is_ecc_router: bool = False,
+    priors_path: Path | None = DEFAULT_PRIORS_PATH,
 ) -> dict[str, Any]:
     """Evaluate GSM8K word problem with exact numeric verification."""
     t_start = time.perf_counter()
@@ -1150,8 +1231,13 @@ async def eval_gsm8k_task(
         engine = fts = healing = None
         if mode == "quadgate":
             t_g = time.perf_counter()
+            cart_name = "general_reasoning"
+            try:
+                load_cartridge("general_reasoning")
+            except Exception:
+                cart_name = "knowledge_vault"
             engine, _, fts, healing = _build_engine(
-                sandbox, "knowledge_vault", driver, index_files=False
+                sandbox, cart_name, driver, index_files=False, priors_path=priors_path
             )
             if is_ecc_router:
                 v3 = await engine.evaluate_gate3_subagent(
@@ -1162,8 +1248,9 @@ async def eval_gsm8k_task(
                         workspace_root=str(sandbox),
                         harness=HarnessType.GENERIC,
                         tool_name="invoke_subagent",
-                        prompt_text=user_msg,
-                        tool_args={"brief": user_msg},
+                        prompt_text=task["question"],
+                        tool_args={"brief": task["question"]},
+                        metadata={"suite": "gsm8k"},
                     )
                 )
                 routed_tier = v3.target_tier or ModelTier.FLOOR
@@ -1193,11 +1280,12 @@ async def eval_gsm8k_task(
                         turn_index=2,
                         workspace_root=str(sandbox),
                         harness=HarnessType.GENERIC,
-                        prompt_text=user_msg,
+                        prompt_text=task["question"],
                         touched_files=["answer.md"],
                         diff_text=res1.text or "",
                         current_tier=routed_tier if is_ecc_router else ModelTier.MID,
                         strike_count=0,
+                        metadata={"suite": "gsm8k"},
                     )
                 )
                 gate_ms += (time.perf_counter() - t_g) * 1000.0
@@ -1267,6 +1355,7 @@ async def eval_enterprise_knowledge_task(
     mode: Literal["baseline", "quadgate"],
     *,
     is_ecc_router: bool = False,
+    priors_path: Path | None = DEFAULT_PRIORS_PATH,
 ) -> dict[str, Any]:
     """Evaluate Finance, Legal, & Knowledge Vault tasks with real Cartridge Gate 4 oracles."""
     t_start = time.perf_counter()
@@ -1298,7 +1387,9 @@ async def eval_enterprise_knowledge_task(
 
         if mode == "quadgate":
             t_g = time.perf_counter()
-            engine, _, fts, healing = _build_engine(sandbox, cart_name, driver, index_files=True)
+            engine, _, fts, healing = _build_engine(
+                sandbox, cart_name, driver, index_files=True, priors_path=priors_path
+            )
             if is_ecc_router:
                 v3 = await engine.evaluate_gate3_subagent(
                     GateEvent(
@@ -1486,6 +1577,98 @@ def _load_completed_keys(output_path: Path) -> set[tuple[str, str, str, str]]:
     return done
 
 
+def _select_stratified_ek_tasks(tasks: list[dict[str, Any]], limit: int) -> list[dict[str, Any]]:
+    """Select up to `limit` Enterprise Knowledge tasks evenly round-robin across cartridges."""
+    if limit <= 0:
+        return []
+    buckets: dict[str, list[dict[str, Any]]] = {}
+    for task in tasks:
+        key = str(task.get("cartridge") or task.get("category") or "default")
+        buckets.setdefault(key, []).append(task)
+    selected: list[dict[str, Any]] = []
+    keys = list(buckets.keys())
+    pos = 0
+    while len(selected) < limit:
+        progressed = False
+        for key in keys:
+            bucket = buckets[key]
+            if pos < len(bucket):
+                selected.append(bucket[pos])
+                progressed = True
+                if len(selected) >= limit:
+                    break
+        if not progressed:
+            break
+        pos += 1
+    return selected
+
+
+def _interleave_suite_tasks(
+    loaded: dict[str, list[dict[str, Any]]],
+) -> list[tuple[str, int, dict[str, Any]]]:
+    """Spread tasks proportionally across all suites so budget caps sample every suite evenly."""
+    tagged: list[tuple[float, int, str, int, dict[str, Any]]] = []
+    for suite_order, (s_name, tasks) in enumerate(loaded.items()):
+        total = max(1, len(tasks))
+        for idx_in_suite, task in enumerate(tasks):
+            fraction = (idx_in_suite + 0.5) / total
+            tagged.append((fraction, suite_order, s_name, idx_in_suite, task))
+    tagged.sort(key=lambda item: (item[0], item[1]))
+    return [(item[2], item[3], item[4]) for item in tagged]
+
+
+def _build_pending_jobs(
+    loaded: dict[str, list[dict[str, Any]]],
+    *,
+    models: list[str],
+    include_ecc: bool,
+    completed: set[tuple[str, str, str, str]],
+    interleave: bool,
+    gemma_max_per_suite: int | None,
+    modes: list[Literal["baseline", "quadgate"]] | None = None,
+    ecc_only: bool = False,
+) -> list[tuple[str, dict[str, Any], str, Literal["baseline", "quadgate"], bool]]:
+    """Expand loaded suite tasks into pending (suite, task, model, mode, is_ecc) jobs."""
+    if interleave:
+        ordered_tasks = _interleave_suite_tasks(loaded)
+    else:
+        ordered_tasks = [
+            (s_name, idx, task)
+            for s_name, tasks in loaded.items()
+            for idx, task in enumerate(tasks)
+        ]
+
+    ecc_suites = {
+        "swe_agent",
+        "humaneval_plus",
+        "bigcodebench",
+        "gsm8k",
+        "enterprise_knowledge",
+    }
+    effective_modes = tuple(modes) if modes is not None else ("baseline", "quadgate")
+    jobs: list[tuple[str, dict[str, Any], str, Literal["baseline", "quadgate"], bool]] = []
+    for s_name, idx_in_suite, task in ordered_tasks:
+        tid = str(task["task_id"])
+        if not ecc_only:
+            for m in models:
+                # Google's Free Tier caps gemma-4-31b-it at 15k input TPM, below the 16.9k-token KV turn payload.
+                if s_name == "long_context_kv" and m == "gemma-4-31b-it":
+                    continue
+                if (
+                    gemma_max_per_suite is not None
+                    and m == "gemma-4-31b-it"
+                    and idx_in_suite >= gemma_max_per_suite
+                ):
+                    continue
+                for mode_lit in effective_modes:
+                    if (s_name, tid, m, mode_lit) not in completed:
+                        jobs.append((s_name, task, m, mode_lit, False))
+        if (include_ecc or ecc_only) and s_name in ecc_suites and "quadgate" in effective_modes:
+            if (s_name, tid, ECC_ROUTER_MODEL_ID, "quadgate") not in completed:
+                jobs.append((s_name, task, ECC_ROUTER_MODEL_ID, "quadgate", True))
+    return jobs
+
+
 async def run_benchmarks(
     *,
     suites: list[str],
@@ -1499,8 +1682,16 @@ async def run_benchmarks(
     kv_limit: int = 6,
     gsm_limit: int = 25,
     kn_limit: int = 15,
-) -> None:
-    """Execute requested benchmark suites and append tamper-evident receipts atomically."""
+    max_spend_usd: float | None = None,
+    stratified_ek: bool = False,
+    gemma_max_per_suite: int | None = None,
+    interleave: bool = False,
+    max_output_tokens: int | None = None,
+    modes: list[Literal["baseline", "quadgate"]] | None = None,
+    ecc_only: bool = False,
+    priors_path: Path | None = DEFAULT_PRIORS_PATH,
+) -> dict[str, Any]:
+    """Execute requested benchmark suites under optional hard spend cap and 402 breaker."""
     output_path.parent.mkdir(parents=True, exist_ok=True)
     completed = _load_completed_keys(output_path)
 
@@ -1518,67 +1709,106 @@ async def run_benchmarks(
     if "gsm8k" in suites:
         loaded["gsm8k"] = load_gsm8k_tasks(limit=gsm_limit)
     if "enterprise_knowledge" in suites:
-        loaded["enterprise_knowledge"] = load_enterprise_knowledge_tasks(limit=kn_limit)
+        if stratified_ek:
+            all_ek = load_enterprise_knowledge_tasks(limit=15)
+            loaded["enterprise_knowledge"] = _select_stratified_ek_tasks(all_ek, kn_limit)
+        else:
+            loaded["enterprise_knowledge"] = load_enterprise_knowledge_tasks(limit=kn_limit)
 
-    jobs: list[tuple[str, dict[str, Any], str, Literal["baseline", "quadgate"], bool]] = []
-    for s_name, tasks in loaded.items():
-        for task in tasks:
-            tid = str(task["task_id"])
-            for m in models:
-                # Google's Free Tier caps gemma-4-31b-it at 15k input TPM, below the 16.9k-token KV turn payload.
-                if s_name == "long_context_kv" and m == "gemma-4-31b-it":
-                    continue
-                for mode_lit in ("baseline", "quadgate"):
-                    key = (s_name, tid, m, mode_lit)
-                    if key not in completed:
-                        jobs.append((s_name, task, m, mode_lit, False))
-            if include_ecc and s_name in {
-                "swe_agent",
-                "humaneval_plus",
-                "bigcodebench",
-                "gsm8k",
-                "enterprise_knowledge",
-            }:
-                ecc_key = (s_name, tid, ECC_ROUTER_MODEL_ID, "quadgate")
-                if ecc_key not in completed:
-                    jobs.append((s_name, task, ECC_ROUTER_MODEL_ID, "quadgate", True))
+    jobs = _build_pending_jobs(
+        loaded,
+        models=models,
+        include_ecc=include_ecc,
+        completed=completed,
+        interleave=interleave,
+        gemma_max_per_suite=gemma_max_per_suite,
+        modes=modes,
+        ecc_only=ecc_only,
+    )
 
-    print(f"Total pending benchmark jobs: {len(jobs)} (already completed: {len(completed)})", flush=True)
+    cap_label = f"${max_spend_usd:.2f}" if max_spend_usd is not None else "uncapped"
+    print(
+        f"Total pending benchmark jobs: {len(jobs)} (already completed: {len(completed)}, "
+        f"budget_cap={cap_label}, interleave={interleave}, stratified_ek={stratified_ek})",
+        flush=True,
+    )
+    budget_guard = LiveBudgetGuard(max_spend_usd=max_spend_usd)
     if not jobs:
-        return
+        return budget_guard.snapshot()
 
-    client = LiveLLMClient()
+    client = LiveLLMClient(
+        budget_guard=budget_guard,
+        max_output_tokens_cap=max_output_tokens,
+    )
     write_lock = asyncio.Lock()
     sem = asyncio.Semaphore(max(1, concurrency))
     done_cnt = 0
     err_cnt = 0
+    skipped_budget_cnt = 0
     t0_all = time.perf_counter()
 
     async def _run_job(job: tuple[str, dict[str, Any], str, Literal["baseline", "quadgate"], bool]) -> None:
-        nonlocal done_cnt, err_cnt
+        nonlocal done_cnt, err_cnt, skipped_budget_cnt
         s_name, task, m_name, mode_lit, is_ecc = job
+        if budget_guard.is_billing_aborted():
+            skipped_budget_cnt += 1
+            return
         async with sem:
-            driver = build_spy_decision1_driver()
+            is_free_baseline = m_name == "gemma-4-31b-it" and mode_lit == "baseline"
+            try:
+                budget_guard.check_before_job(min_headroom_usd=0.0 if is_free_baseline else 0.002)
+            except (BudgetExceededError, BillingDepletedError) as exc:
+                skipped_budget_cnt += 1
+                if skipped_budget_cnt <= 3 or skipped_budget_cnt % 50 == 0:
+                    print(
+                        f"[BUDGET/402 PRE-SKIP #{skipped_budget_cnt}] "
+                        f"{s_name} {task['task_id']} {m_name}/{mode_lit}: {exc}",
+                        flush=True,
+                    )
+                return
+
+            def _dispatch_eval(fn: Any, *args: Any, **kwargs: Any) -> Any:
+                try:
+                    params = inspect.signature(fn).parameters
+                    if "priors_path" not in params and not any(
+                        p.kind == inspect.Parameter.VAR_KEYWORD for p in params.values()
+                    ):
+                        kwargs.pop("priors_path", None)
+                except (ValueError, TypeError):
+                    pass
+                return fn(*args, **kwargs)
+
+            driver = build_spy_decision1_driver(budget_guard=budget_guard)
             try:
                 if s_name == "swe_agent":
-                    rec = await eval_swe_agent_task(
-                        client, driver, task, m_name, mode_lit, is_ecc_router=is_ecc
+                    rec = await _dispatch_eval(
+                        eval_swe_agent_task,
+                        client, driver, task, m_name, mode_lit, is_ecc_router=is_ecc, priors_path=priors_path
                     )
                 elif s_name in ("humaneval_plus", "bigcodebench"):
-                    rec = await eval_single_function_coding_task(
-                        client, driver, task, m_name, mode_lit, is_ecc_router=is_ecc
+                    rec = await _dispatch_eval(
+                        eval_single_function_coding_task,
+                        client, driver, task, m_name, mode_lit, is_ecc_router=is_ecc, priors_path=priors_path
                     )
                 elif s_name == "long_context_kv":
-                    rec = await eval_long_context_kv_task(client, driver, task, m_name, mode_lit)
+                    rec = await _dispatch_eval(
+                        eval_long_context_kv_task,
+                        client, driver, task, m_name, mode_lit, priors_path=priors_path
+                    )
                 elif s_name == "agentic_security":
-                    rec = await eval_agentic_security_task(client, driver, task, m_name, mode_lit)
+                    rec = await _dispatch_eval(
+                        eval_agentic_security_task,
+                        client, driver, task, m_name, mode_lit, priors_path=priors_path
+                    )
                 elif s_name == "gsm8k":
-                    rec = await eval_gsm8k_task(
-                        client, driver, task, m_name, mode_lit, is_ecc_router=is_ecc
+                    rec = await _dispatch_eval(
+                        eval_gsm8k_task,
+                        client, driver, task, m_name, mode_lit, is_ecc_router=is_ecc, priors_path=priors_path
                     )
                 elif s_name == "enterprise_knowledge":
-                    rec = await eval_enterprise_knowledge_task(
-                        client, driver, task, m_name, mode_lit, is_ecc_router=is_ecc
+                    rec = await _dispatch_eval(
+                        eval_enterprise_knowledge_task,
+                        client, driver, task, m_name, mode_lit, is_ecc_router=is_ecc, priors_path=priors_path
                     )
                 else:
                     raise ValueError(f"Unknown suite {s_name}")
@@ -1589,12 +1819,21 @@ async def run_benchmarks(
                     done_cnt += 1
                     if done_cnt % 10 == 0 or done_cnt == len(jobs):
                         elapsed = time.perf_counter() - t0_all
+                        snap = budget_guard.snapshot()
                         print(
-                            f"[{done_cnt}/{len(jobs)} | {elapsed:.1f}s] "
+                            f"[{done_cnt}/{len(jobs)} | {elapsed:.1f}s | spent=${snap['spent_usd']:.4f}] "
                             f"{s_name} {task['task_id']} {m_name}/{mode_lit} -> "
                             f"pass={rec['passed']} cost=${rec['total_cost_usd']:.5f}",
                             flush=True,
                         )
+            except (BudgetExceededError, BillingDepletedError) as exc:
+                skipped_budget_cnt += 1
+                if skipped_budget_cnt <= 5 or skipped_budget_cnt % 25 == 0:
+                    print(
+                        f"[BUDGET/402 HALT #{skipped_budget_cnt}] "
+                        f"{s_name} {task['task_id']} {m_name}/{mode_lit}: {exc}",
+                        flush=True,
+                    )
             except (
                 RuntimeError,
                 ValueError,
@@ -1618,7 +1857,13 @@ async def run_benchmarks(
     finally:
         await client.close()
 
-    print(f"Finished {done_cnt}/{len(jobs)} jobs (errors={err_cnt}) in {time.perf_counter() - t0_all:.1f}s", flush=True)
+    snap = budget_guard.snapshot()
+    print(
+        f"Finished {done_cnt}/{len(jobs)} jobs (errors={err_cnt}, skipped_budget={skipped_budget_cnt}, "
+        f"spent=${snap['spent_usd']:.6f}, abort={snap['aborted_reason']}) in {time.perf_counter() - t0_all:.1f}s",
+        flush=True,
+    )
+    return snap
 
 
 def main() -> int:
@@ -1635,6 +1880,47 @@ def main() -> int:
     parser.add_argument("--kv-limit", type=int, default=6)
     parser.add_argument("--gsm-limit", type=int, default=25)
     parser.add_argument("--kn-limit", type=int, default=15)
+    parser.add_argument("--max-spend-usd", type=float, default=None, help="Hard real-time USD spend cap")
+    parser.add_argument(
+        "--stratified-ek",
+        action="store_true",
+        help="Sample Enterprise Knowledge evenly round-robin across cartridges",
+    )
+    parser.add_argument(
+        "--gemma-max-per-suite",
+        type=int,
+        default=None,
+        help="Optional per-suite task cap for slow Open-Weights Gemma 31B tier",
+    )
+    parser.add_argument(
+        "--interleave",
+        action="store_true",
+        help="Proportionally interleave tasks across suites before expanding model runs",
+    )
+    parser.add_argument(
+        "--max-output-tokens",
+        type=int,
+        default=None,
+        help="Optional hard ceiling on maxOutputTokens per call for tighter budget reservation",
+    )
+    parser.add_argument(
+        "--modes",
+        nargs="+",
+        choices=["baseline", "quadgate"],
+        default=None,
+        help="Execution modes to evaluate (default: baseline and quadgate)",
+    )
+    parser.add_argument(
+        "--ecc-only",
+        action="store_true",
+        help="Run only quadgate-ecc-router (skip fixed models)",
+    )
+    parser.add_argument(
+        "--priors",
+        type=Path,
+        default=DEFAULT_PRIORS_PATH,
+        help="Path to Gate 3 calibrated priors JSON",
+    )
     args = parser.parse_args()
 
     all_suites = [
@@ -1660,6 +1946,14 @@ def main() -> int:
             kv_limit=args.kv_limit,
             gsm_limit=args.gsm_limit,
             kn_limit=args.kn_limit,
+            max_spend_usd=args.max_spend_usd,
+            stratified_ek=args.stratified_ek,
+            gemma_max_per_suite=args.gemma_max_per_suite,
+            interleave=args.interleave,
+            max_output_tokens=args.max_output_tokens,
+            modes=args.modes,
+            ecc_only=args.ecc_only,
+            priors_path=args.priors,
         )
     )
     return 0

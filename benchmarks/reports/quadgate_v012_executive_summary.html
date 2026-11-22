@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>QuadGate v0.1.2 Executive Benchmark Brief</title>
+<style>
+  @page { size: letter portrait; margin: 0; }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    width: 8.5in;
+    height: 10.98in;
+    background: #FAFAF8;
+    color: #0F172A;
+    font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+    overflow: hidden;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .sheet {
+    width: 8.5in;
+    height: 10.98in;
+    max-height: 10.98in;
+    overflow: hidden;
+    padding: 0.34in 0.42in 0.28in 0.42in;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    position: relative;
+  }
+  .watermark {
+    position: absolute;
+    top: -22px;
+    right: 14px;
+    font-family: 'Bahnschrift', 'Segoe UI', sans-serif;
+    font-size: 165pt;
+    font-weight: 900;
+    line-height: 0.85;
+    letter-spacing: -0.05em;
+    color: #0F172A;
+    opacity: 0.032;
+    pointer-events: none;
+    z-index: 0;
+  }
+  .sheet > section, .sheet > header, .sheet > footer {
+    position: relative;
+    z-index: 1;
+  }
+  .mono {
+    font-family: 'Cascadia Mono', 'Consolas', monospace;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Band 1: Masthead */
+  .masthead {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    padding-bottom: 10px;
+    border-bottom: 1.5px solid #0F172A;
+  }
+  .brand-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .brand-name {
+    font-family: 'Bahnschrift', 'Segoe UI', sans-serif;
+    font-size: 22pt;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1;
+    color: #0F172A;
+  }
+  .release-tag {
+    font-family: 'Cascadia Mono', 'Consolas', monospace;
+    font-size: 7.5pt;
+    font-weight: 700;
+    padding: 2px 6px;
+    background: #0F172A;
+    color: #FFFFFF;
+    letter-spacing: 0.04em;
+    vertical-align: middle;
+  }
+  .tagline {
+    margin-top: 3px;
+    font-size: 9.5pt;
+    font-weight: 600;
+    color: #0F172A;
+  }
+  .sub-prop {
+    margin-top: 1px;
+    font-size: 8.2pt;
+    color: #475569;
+  }
+  .stamp {
+    border: 1.5px solid #0F172A;
+    background: #FFFFFF;
+    padding: 5px 10px;
+    text-align: right;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .stamp-top {
+    font-family: 'Cascadia Mono', 'Consolas', monospace;
+    font-size: 7.2pt;
+    font-weight: 700;
+    color: #059669;
+    letter-spacing: 0.03em;
+  }
+  .stamp-mid {
+    font-family: 'Cascadia Mono', 'Consolas', monospace;
+    font-size: 8.2pt;
+    font-weight: 700;
+    color: #0F172A;
+    margin-top: 1px;
+  }
+  .stamp-bot {
+    font-size: 7.2pt;
+    color: #475569;
+    margin-top: 1px;
+  }
+
+  /* Band 2: KPI Strip */
+  .kpi-strip {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    border-bottom: 1px solid #CBD5E1;
+    padding: 8px 0 9px 0;
+  }
+  .kpi {
+    padding: 0 11px 0 0;
+    border-right: 1px solid #CBD5E1;
+  }
+  .kpi:not(:first-child) {
+    padding-left: 11px;
+  }
+  .kpi:last-child {
+    border-right: none;
+    padding-right: 0;
+  }
+  .kpi-num {
+    font-family: 'Bahnschrift', 'Cascadia Mono', sans-serif;
+    font-size: 24pt;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1.02;
+  }
+  .c-green { color: #059669; }
+  .c-sky { color: #0284C7; }
+  .c-ink { color: #0F172A; }
+  .kpi-label {
+    font-size: 7.8pt;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #0F172A;
+    margin-top: 2px;
+  }
+  .kpi-detail {
+    font-size: 7.2pt;
+    line-height: 1.3;
+    color: #475569;
+    margin-top: 2px;
+  }
+
+  /* Band 3: Two-Column Core */
+  .core-grid {
+    display: grid;
+    grid-template-columns: 1.32fr 1fr;
+    gap: 16px;
+    align-items: start;
+  }
+  .sec-hdr {
+    font-family: 'Cascadia Mono', 'Consolas', monospace;
+    font-size: 7.4pt;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #0F172A;
+    border-bottom: 1px solid #0F172A;
+    padding-bottom: 3px;
+    margin: 0 0 6px 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    white-space: nowrap;
+    gap: 8px;
+  }
+  .sec-hdr span.muted {
+    color: #475569;
+    font-weight: 600;
+  }
+  .chart-panel {
+    background: #FFFFFF;
+    border: 1px solid #CBD5E1;
+    padding: 7px 9px 4px 9px;
+    margin-bottom: 8px;
+  }
+  .chart-panel:last-child {
+    margin-bottom: 0;
+  }
+
+  .mode-block {
+    background: #FFFFFF;
+    border: 1px solid #CBD5E1;
+    border-left: 3.5px solid #0284C7;
+    padding: 6px 9px;
+    margin-bottom: 6px;
+  }
+  .mode-block.route {
+    border-left-color: #059669;
+  }
+  .mode-title {
+    font-size: 8.2pt;
+    font-weight: 700;
+    color: #0F172A;
+  }
+  .mode-copy {
+    font-size: 7.3pt;
+    line-height: 1.34;
+    color: #334155;
+    margin-top: 2px;
+  }
+
+  .gate-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-top: 4px;
+  }
+  .gate-item {
+    display: grid;
+    grid-template-columns: 4px 1fr;
+    gap: 8px;
+    background: #FFFFFF;
+    border: 1px solid #E2E8F0;
+    padding: 4px 8px 4px 0;
+  }
+  .gate-bar-1 { background: #38BDF8; }
+  .gate-bar-2 { background: #0EA5E9; }
+  .gate-bar-3 { background: #10B981; }
+  .gate-bar-4 { background: #34D399; }
+  .gate-name {
+    font-size: 7.8pt;
+    font-weight: 700;
+    color: #0F172A;
+  }
+  .gate-desc {
+    font-size: 7.1pt;
+    color: #475569;
+    line-height: 1.28;
+  }
+
+  /* Band 4: Single-Model Gating Table */
+  .proof-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: #FFFFFF;
+    border: 1px solid #CBD5E1;
+    font-size: 7.5pt;
+  }
+  .proof-table th {
+    background: #0F172A;
+    color: #FFFFFF;
+    text-align: left;
+    padding: 4.5px 7px;
+    font-family: 'Cascadia Mono', 'Consolas', monospace;
+    font-size: 7.1pt;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+  }
+  .proof-table td {
+    padding: 4.5px 7px;
+    border-bottom: 1px solid #E2E8F0;
+    vertical-align: middle;
+    color: #1E293B;
+  }
+  .proof-table tr:last-child td {
+    border-bottom: none;
+  }
+  .proof-table tr:nth-child(even) td {
+    background: #F8FAFC;
+  }
+  .badge-win {
+    font-family: 'Cascadia Mono', 'Consolas', monospace;
+    font-weight: 700;
+    color: #059669;
+  }
+  .badge-sky {
+    font-family: 'Cascadia Mono', 'Consolas', monospace;
+    font-weight: 700;
+    color: #0284C7;
+  }
+
+  /* Band 5: Footer */
+  .footer {
+    border-top: 1.5px solid #0F172A;
+    padding-top: 6px;
+    display: grid;
+    grid-template-columns: 1.45fr 1fr 0.75fr;
+    gap: 14px;
+    font-size: 6.9pt;
+    line-height: 1.32;
+    color: #334155;
+  }
+  .footer h4 {
+    margin: 0 0 2px 0;
+    font-family: 'Cascadia Mono', 'Consolas', monospace;
+    font-size: 7pt;
+    color: #0F172A;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+</style>
+</head>
+<body>
+<main class="sheet">
+  <div class="watermark">04</div>
+
+  <!-- BAND 1: MASTHEAD -->
+  <header class="masthead">
+    <div>
+      <div class="brand-row">
+        <svg width="34" height="28" viewBox="0 0 55 42" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <rect x="0" y="0" width="10" height="42" rx="2.5" fill="#38BDF8"/>
+          <rect x="15" y="0" width="10" height="42" rx="2.5" fill="#0EA5E9"/>
+          <rect x="30" y="0" width="10" height="42" rx="2.5" fill="#10B981"/>
+          <rect x="45" y="0" width="10" height="42" rx="2.5" fill="#34D399"/>
+        </svg>
+        <span class="brand-name">QUADGATE</span>
+        <span class="release-tag">v0.1.2 · EXECUTIVE BENCHMARK BRIEF</span>
+      </div>
+      <div class="tagline">4-Gate Discriminative Control Plane for Production AI Agents</div>
+      <div class="sub-prop">Preserve KV caches. Wrap any single model or route across tiers. Cut LLM spend &amp; latency without sacrificing safety.</div>
+    </div>
+    <div class="stamp">
+      <div class="stamp-top">LIVE VERIFIED · ZERO SYNTHETIC TRACES</div>
+      <div class="stamp-mid">1,293 SHA-256 GOOGLE API RECEIPTS</div>
+      <div class="stamp-bot">1,007 Baseline + 286 v0.1.2 · 259/259 Pytest</div>
+    </div>
+  </header>
+
+  <!-- BAND 2: HERO KPI STRIP -->
+  <section class="kpi-strip">
+    <div class="kpi">
+      <div class="kpi-num c-green">-39.1%</div>
+      <div class="kpi-label">Adaptive Receipt Cost</div>
+      <div class="kpi-detail">vs. Flagship Carbon Alone (<span class="mono">$0.62&rarr;$0.38</span> on 79 tasks; <span class="mono">$0.50</span> / <span class="mono">-19.0%</span> billed incl. retries; within <span class="mono">1.7%</span> of <span class="mono">$0.37</span> Oracle).</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-num c-sky">3.1&times;</div>
+      <div class="kpi-label">Faster Median Latency</div>
+      <div class="kpi-detail">Median turnaround cut <span class="mono">23.3s&rarr;7.5s</span> (<span class="mono">+5.06 pp</span> Pass@1 vs v0.1.1 to <span class="mono">82.28%</span>); <span class="mono">3.3&times;</span> fewer reasoning tokens.</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-num c-green">-62.1%</div>
+      <div class="kpi-label">Long-Context KV Spend</div>
+      <div class="kpi-detail"><span class="mono">$5.92&rarr;$2.25</span> across <span class="mono">7</span> Gemini models (<span class="mono">41</span> 5-turn pairs); Turns 2–5 cache hits <span class="mono">0.5%&rarr;85.8%</span> at <span class="mono">100%</span> Pass@1.</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-num c-ink">100%</div>
+      <div class="kpi-label">Attack Block (<span class="mono">99.4%</span> Safe)</div>
+      <div class="kpi-detail">Up from <span class="mono">83.7%</span> attack / <span class="mono">86.7%</span> overall across <span class="mono">158</span> pairs &amp; <span class="mono">8</span> models; <span class="mono">0</span> new FPs; <span class="mono">0/286</span> v0.1.2 leaks.</div>
+    </div>
+  </section>
+
+  <!-- BAND 3: CHARTS + TWO DEPLOYMENT MODES + 4-GATE STACK -->
+  <section class="core-grid">
+    <div>
+      <div class="sec-hdr">
+        <span>79-Task Frontier: Carbon Alone vs. +QuadGate ECC</span>
+        <span class="muted">LIVE A/B</span>
+      </div>
+      <div class="chart-panel"><svg viewBox="0 0 446 148" width="100%" height="148" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="79-Task Frontier Comparison"><text x="152" y="11" fill="#475569" font-family="Cascadia Mono,Consolas,monospace" font-size="7.6" font-weight="700">PASS@1 (50–100% SCALE)</text><text x="330" y="11" text-anchor="end" fill="#475569" font-family="Cascadia Mono,Consolas,monospace" font-size="7.6" font-weight="700">RECEIPT</text><text x="385" y="11" text-anchor="end" fill="#475569" font-family="Cascadia Mono,Consolas,monospace" font-size="7.6" font-weight="700">BILLED</text><text x="440" y="11" text-anchor="end" fill="#475569" font-family="Cascadia Mono,Consolas,monospace" font-size="7.6" font-weight="700">p50</text><line x1="0" y1="16" x2="446" y2="16" stroke="#0F172A" stroke-width="1"/><text x="4" y="39" fill="#334155" font-family="Segoe UI,sans-serif" font-size="9" font-weight="500">Gemini 4 Carbon (Alone)</text><rect x="152" y="29" width="134" height="12" fill="#E2E8F0" opacity="0.5"/><rect x="152" y="29" width="89.9" height="12" fill="#94A3B8"/><text x="236.9" y="38" text-anchor="end" fill="#0F172A" font-family="Cascadia Mono,Consolas,monospace" font-size="7.8" font-weight="700">83.5%</text><text x="330" y="39" text-anchor="end" fill="#0F172A" font-family="Cascadia Mono,Consolas,monospace" font-size="9" font-weight="500">$0.62</text><text x="385" y="39" text-anchor="end" fill="#475569" font-family="Cascadia Mono,Consolas,monospace" font-size="9" font-weight="500">$0.62</text><text x="440" y="39" text-anchor="end" fill="#334155" font-family="Cascadia Mono,Consolas,monospace" font-size="9" font-weight="500">23.3s</text><text x="4" y="70" fill="#334155" font-family="Segoe UI,sans-serif" font-size="9" font-weight="500">QuadGate v0.1.1 (Unpatched)</text><rect x="152" y="60" width="134" height="12" fill="#E2E8F0" opacity="0.5"/><rect x="152" y="60" width="72.9" height="12" fill="#CBD5E1"/><text x="219.9" y="69" text-anchor="end" fill="#0F172A" font-family="Cascadia Mono,Consolas,monospace" font-size="7.8" font-weight="700">77.2%</text><text x="330" y="70" text-anchor="end" fill="#0F172A" font-family="Cascadia Mono,Consolas,monospace" font-size="9" font-weight="500">$0.59</text><text x="385" y="70" text-anchor="end" fill="#475569" font-family="Cascadia Mono,Consolas,monospace" font-size="9" font-weight="500">$0.59</text><text x="440" y="70" text-anchor="end" fill="#334155" font-family="Cascadia Mono,Consolas,monospace" font-size="9" font-weight="500">15.7s</text><rect x="0" y="84" width="446" height="28" fill="#ECFDF5"/><text x="4" y="101" fill="#0F172A" font-family="Segoe UI,sans-serif" font-size="9" font-weight="700">QuadGate v0.1.2 (Live ECC)</text><rect x="152" y="91" width="134" height="12" fill="#E2E8F0" opacity="0.5"/><rect x="152" y="91" width="86.5" height="12" fill="#059669"/><text x="233.5" y="100" text-anchor="end" fill="#FFFFFF" font-family="Cascadia Mono,Consolas,monospace" font-size="7.8" font-weight="700">82.3%</text><text x="330" y="101" text-anchor="end" fill="#059669" font-family="Cascadia Mono,Consolas,monospace" font-size="9" font-weight="700">$0.38</text><text x="385" y="101" text-anchor="end" fill="#475569" font-family="Cascadia Mono,Consolas,monospace" font-size="9" font-weight="700">$0.50</text><text x="440" y="101" text-anchor="end" fill="#0284C7" font-family="Cascadia Mono,Consolas,monospace" font-size="9" font-weight="700">7.5s</text><text x="4" y="132" fill="#334155" font-family="Segoe UI,sans-serif" font-size="9" font-weight="500">Empirical Oracle Bound</text><rect x="152" y="122" width="134" height="12" fill="#E2E8F0" opacity="0.5"/><rect x="152" y="122" width="93.3" height="12" fill="#E0F2FE" stroke="#0284C7" stroke-width="1.2" stroke-dasharray="3 2"/><text x="240.3" y="131" text-anchor="end" fill="#0369A1" font-family="Cascadia Mono,Consolas,monospace" font-size="7.8" font-weight="700">84.8%</text><text x="330" y="132" text-anchor="end" fill="#0F172A" font-family="Cascadia Mono,Consolas,monospace" font-size="9" font-weight="500">$0.37</text><text x="385" y="132" text-anchor="end" fill="#475569" font-family="Cascadia Mono,Consolas,monospace" font-size="9" font-weight="500">—</text><text x="440" y="132" text-anchor="end" fill="#334155" font-family="Cascadia Mono,Consolas,monospace" font-size="9" font-weight="500">2.5s</text><line x1="245.3" y1="18" x2="245.3" y2="142" stroke="#0284C7" stroke-width="1" stroke-dasharray="2 2"/></svg></div>
+
+      <div class="sec-hdr">
+        <span>Per-Suite Pass@1 &amp; Cost Drop (v0.1.1 &rarr; v0.1.2)</span>
+        <span class="muted">5 SUITES</span>
+      </div>
+      <div class="chart-panel"><svg viewBox="0 0 446 166" width="100%" height="166" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Per-Suite v0.1.2 Performance"><rect x="128" y="4" width="7" height="7" fill="#CBD5E1"/><text x="138" y="10.5" fill="#475569" font-family="Segoe UI,sans-serif" font-size="7.4">v0.1.1</text><rect x="172" y="4" width="7" height="7" fill="#10B981"/><text x="182" y="10.5" fill="#0F172A" font-family="Segoe UI,sans-serif" font-size="7.4" font-weight="700">v0.1.2 ECC</text><line x1="232" y1="3" x2="232" y2="12" stroke="#0F172A" stroke-width="1.8"/><text x="237" y="10.5" fill="#0F172A" font-family="Segoe UI,sans-serif" font-size="7.4">Carbon</text><text x="326" y="10.5" text-anchor="end" fill="#475569" font-family="Cascadia Mono,Consolas,monospace" font-size="7.4" font-weight="700">v0.1.2</text><text x="442" y="10.5" text-anchor="end" fill="#475569" font-family="Cascadia Mono,Consolas,monospace" font-size="7.4" font-weight="700">COST / GAIN</text><line x1="0" y1="16" x2="446" y2="16" stroke="#0F172A" stroke-width="1"/><text x="4" y="39" fill="#0F172A" font-family="Segoe UI,sans-serif" font-size="8.4" font-weight="600">GSM8K (25)</text><rect x="128" y="27" width="154" height="18" fill="#F1F5F9"/><rect x="128" y="28" width="154.0" height="6" fill="#CBD5E1"/><rect x="128" y="35" width="147.8" height="9" fill="#10B981"/><line x1="282.0" y1="26" x2="282.0" y2="46" stroke="#0F172A" stroke-width="1.8"/><text x="326" y="40" text-anchor="end" fill="#0F172A" font-family="Cascadia Mono,Consolas,monospace" font-size="8.2" font-weight="700">96.0%</text><text x="442" y="40" text-anchor="end" fill="#059669" font-family="Cascadia Mono,Consolas,monospace" font-size="7.8" font-weight="700">-95% vs v0.1.1</text><text x="4" y="67" fill="#0F172A" font-family="Segoe UI,sans-serif" font-size="8.4" font-weight="600">HumanEval+ (20)</text><rect x="128" y="55" width="154" height="18" fill="#F1F5F9"/><rect x="128" y="56" width="146.3" height="6" fill="#CBD5E1"/><rect x="128" y="63" width="146.3" height="9" fill="#10B981"/><line x1="274.3" y1="54" x2="274.3" y2="74" stroke="#0F172A" stroke-width="1.8"/><text x="326" y="68" text-anchor="end" fill="#0F172A" font-family="Cascadia Mono,Consolas,monospace" font-size="8.2" font-weight="700">95.0%</text><text x="442" y="68" text-anchor="end" fill="#059669" font-family="Cascadia Mono,Consolas,monospace" font-size="7.8" font-weight="700">-69% vs v0.1.1</text><text x="4" y="95" fill="#0F172A" font-family="Segoe UI,sans-serif" font-size="8.4" font-weight="600">BigCodeBench (14)</text><rect x="128" y="83" width="154" height="18" fill="#F1F5F9"/><rect x="128" y="84" width="99.0" height="6" fill="#CBD5E1"/><rect x="128" y="91" width="121.0" height="9" fill="#10B981"/><line x1="249.0" y1="82" x2="249.0" y2="102" stroke="#0F172A" stroke-width="1.8"/><text x="326" y="96" text-anchor="end" fill="#0F172A" font-family="Cascadia Mono,Consolas,monospace" font-size="8.2" font-weight="700">78.6%</text><text x="442" y="96" text-anchor="end" fill="#059669" font-family="Cascadia Mono,Consolas,monospace" font-size="7.8" font-weight="700">-33% vs v0.1.1</text><text x="4" y="123" fill="#0F172A" font-family="Segoe UI,sans-serif" font-size="8.4" font-weight="600">Enterprise Know. (12)</text><rect x="128" y="111" width="154" height="18" fill="#F1F5F9"/><rect x="128" y="112" width="89.8" height="6" fill="#CBD5E1"/><rect x="128" y="119" width="89.8" height="9" fill="#10B981"/><line x1="230.7" y1="110" x2="230.7" y2="130" stroke="#0F172A" stroke-width="1.8"/><text x="326" y="124" text-anchor="end" fill="#0F172A" font-family="Cascadia Mono,Consolas,monospace" font-size="8.2" font-weight="700">58.3%</text><text x="442" y="124" text-anchor="end" fill="#0284C7" font-family="Cascadia Mono,Consolas,monospace" font-size="7.8" font-weight="700">0 clf · 107ms gate</text><text x="4" y="151" fill="#0F172A" font-family="Segoe UI,sans-serif" font-size="8.4" font-weight="600">SWE-Agent (8)</text><rect x="128" y="139" width="154" height="18" fill="#F1F5F9"/><rect x="128" y="140" width="19.2" height="6" fill="#CBD5E1"/><rect x="128" y="147" width="77.0" height="9" fill="#10B981"/><line x1="185.8" y1="138" x2="185.8" y2="158" stroke="#0F172A" stroke-width="1.8"/><text x="326" y="152" text-anchor="end" fill="#0F172A" font-family="Cascadia Mono,Consolas,monospace" font-size="8.2" font-weight="700">50.0%</text><text x="442" y="152" text-anchor="end" fill="#059669" font-family="Cascadia Mono,Consolas,monospace" font-size="7.8" font-weight="700">+37.5pp · -73% cost</text></svg></div>
+    </div>
+
+    <div>
+      <div class="sec-hdr">
+        <span>Two Ways QuadGate Runs</span>
+        <span class="muted">WRAP OR ROUTE</span>
+      </div>
+      <div class="mode-block">
+        <div class="mode-title">Mode 1 · Wrap Any Single Model (<span class="mono">Model Alone</span> &rarr; <span class="mono">+QuadGate</span>)</div>
+        <div class="mode-copy">Keep your model fixed (e.g., Gemini 4 Carbon or 3.8 Flash). QuadGate locks KV caches (<span class="mono">-62.1%</span>), blocks attacks (<span class="mono">100%</span>), preloads file hints, and eliminates wasted retries.</div>
+      </div>
+      <div class="mode-block route">
+        <div class="mode-title">Mode 2 · Adaptive ECC Multi-Tier Router (<span class="mono">ECC</span> vs. <span class="mono">Carbon Alone</span>)</div>
+        <div class="mode-copy">Dispatches routine prompts (<span class="mono">72%</span>) to fast Flash-Lite and reserves flagship Carbon (<span class="mono">28%</span>) for complex coding &amp; enterprise tasks—matching flagship accuracy at <span class="mono">-39.1%</span> receipt cost and <span class="mono">3.1&times;</span> speed.</div>
+      </div>
+
+      <div class="sec-hdr" style="margin-top: 8px;">
+        <span>Zero-Critic 4-Gate Kernel</span>
+        <span class="muted">&lt;450ms SHIM OVERHEAD</span>
+      </div>
+      <div class="gate-list">
+        <div class="gate-item">
+          <div class="gate-bar-1"></div>
+          <div>
+            <div class="gate-name">Gate 1 · Context Sieve &amp; Prefix Lock</div>
+            <div class="gate-desc">Pins immutable prompt prefixes for KV reuse &amp; injects Turn-1 file hints.</div>
+          </div>
+        </div>
+        <div class="gate-item">
+          <div class="gate-bar-2"></div>
+          <div>
+            <div class="gate-name">Gate 2 · Offline Stage-2A &amp; Policy Firewall</div>
+            <div class="gate-desc">0 ms deterministic containment for secrets, paths, and unsafe tool writes.</div>
+          </div>
+        </div>
+        <div class="gate-item">
+          <div class="gate-bar-3"></div>
+          <div>
+            <div class="gate-name">Gate 3 · 20k-Calibrated ECC Router</div>
+            <div class="gate-desc">Bayesian Expected Cost of Completion dispatch (<span class="mono">57</span> floor / <span class="mono">22</span> frontier).</div>
+          </div>
+        </div>
+        <div class="gate-item">
+          <div class="gate-bar-4"></div>
+          <div>
+            <div class="gate-name">Gate 4 · Deterministic Truth Oracle</div>
+            <div class="gate-desc">Verifies JSON, code builds &amp; citations; fast-paths general reasoning in <span class="mono">1</span> turn.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- BAND 4: SINGLE-MODEL GATING PROOF TABLE -->
+  <section>
+    <div class="sec-hdr">
+      <span>Single-Model Ablation: Same Model Alone vs. +QuadGate</span>
+      <span class="muted">MATCHED PAIRS · NO ROUTING CONFOUNDERS</span>
+    </div>
+    <table class="proof-table">
+      <thead>
+        <tr>
+          <th style="width: 24%;">Wrapped Model / Suite</th>
+          <th style="width: 12%;">Matched Scope</th>
+          <th style="width: 19%;">Model Alone (Baseline)</th>
+          <th style="width: 20%;">Same Model + QuadGate</th>
+          <th style="width: 25%;">Measured Impact</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Gemini 4 Carbon</strong> <span style="color:#475569;">(Flagship · v0.1.2)</span></td>
+          <td class="mono">N=64 tasks</td>
+          <td class="mono">85.9% · 23.3s p50</td>
+          <td class="mono badge-win">85.9% · 8.7s p50</td>
+          <td><span class="badge-win">SWE 60%&rarr;100%</span> (3/5&rarr;5/5) · <span class="mono">2.7&times;</span> faster · GSM8K <span class="mono">-67%</span> QG cost</td>
+        </tr>
+        <tr>
+          <td><strong>Gemini 3.8 Flash</strong> <span style="color:#475569;">(Mid · v0.1.2)</span></td>
+          <td class="mono">N=69 tasks</td>
+          <td class="mono">73.9% · 7.7s p50</td>
+          <td class="mono badge-win">81.2% · 7.0s p50</td>
+          <td><span class="badge-win">+7.25 pp</span> vs Base (<span class="mono">+8.70 pp</span> vs v0.1.1 QG) · 0 regressions · 0 leaks</td>
+        </tr>
+        <tr>
+          <td><strong>Gemini 3.1 Flash-Lite</strong> <span style="color:#475569;">(Floor · v0.1.2)</span></td>
+          <td class="mono">N=74 tasks</td>
+          <td class="mono">73.0% · $0.032</td>
+          <td class="mono badge-sky">71.6% · $0.037</td>
+          <td><span class="badge-sky">-28.8% total QG cost</span> · clf <span class="mono">-65.7%</span> · gate <span class="mono">1.26s&rarr;0.21s</span> (<span class="mono">5.9&times;</span>)</td>
+        </tr>
+        <tr>
+          <td><strong>Long-Context KV</strong> <span style="color:#475569;">(7 Gemini Models)</span></td>
+          <td class="mono">41 pairs &times; 5T</td>
+          <td class="mono">100.0% · 0.4% KV · $5.92</td>
+          <td class="mono badge-win">100.0% · 68.8% KV · $2.25</td>
+          <td><span class="badge-win">-62.1% spend</span> · Turns 2–5 warm KV <span class="mono">0.5%&rarr;85.8%</span></td>
+        </tr>
+        <tr>
+          <td><strong>Agentic Security</strong> <span style="color:#475569;">(8 Models + Gemma 4)</span></td>
+          <td class="mono">158 pairs</td>
+          <td class="mono">86.7% · 83.7% atk</td>
+          <td class="mono badge-win">99.4% · 100.0% atk</td>
+          <td><span class="badge-win">+12.7 pp safety</span> · Gemma 4 31B <span class="mono">79.2%&rarr;100.0%</span> · 0 benign FPs</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- BAND 5: PROVENANCE & INTEGRATION FOOTER -->
+  <footer class="footer">
+    <div>
+      <h4>Audited Proof &amp; Billing Transparency</h4>
+      <span><span class="mono">0</span> SHA-256 errors across <span class="mono">1,007</span> v0.1.1 + <span class="mono">286</span> v0.1.2 live receipts; <span class="mono">259/259</span> <span class="mono">pytest</span> checks passing; cumulative Option-1 spend <span class="mono">$4.94</span> (<span class="mono">&le;$5.00</span> cap). Receipt cost (<span class="mono">$0.38</span>) excludes <span class="mono">$0.125</span> in Carbon empty-JSON retries (<span class="mono">$0.50</span> total billed, <span class="mono">-19.0%</span> vs Carbon alone).</span>
+    </div>
+    <div>
+      <h4>Drop-In Enterprise Integrations</h4>
+      <span>Persistent localhost daemon (<span class="mono">127.0.0.1:8787</span>), cold-session proxy (<span class="mono">:8788</span>), &amp; <span class="mono">&lt;450 ms</span> hook shim (<span class="mono">qg-shim</span>) for <strong>Antigravity &amp; Swarms</strong>, <strong>Claude Code</strong>, <strong>OpenAI Codex CLI</strong>, and <strong>MCP</strong>.</span>
+    </div>
+    <div>
+      <h4>Open Source · Provenance</h4>
+      <span>Apache-2.0 License<br/><span class="mono">github.com/blagoslov333-cloud/quadgate</span><br/>Verified Snapshot <span class="mono">2026-11-22</span></span>
+    </div>
+  </footer>
+</main>
+</body>
+</html>

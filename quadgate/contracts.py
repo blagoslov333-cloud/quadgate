@@ -259,6 +259,7 @@ class TruthOracleSpec(BaseModel):
     timeout_ms: int = Field(default=800, ge=50, le=10000)
     commands_by_extension: dict[str, list[str]] = Field(default_factory=dict)
     checks: list[str] = Field(default_factory=list)
+    check_clause_completeness: bool = True
 
 
 class CartridgeSpec(BaseModel):

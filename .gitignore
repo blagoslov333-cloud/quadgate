@@ -27,6 +27,7 @@ benchmarks/reports/run_*.jsonl
 benchmarks/reports/stress_diag_*.json
 benchmarks/reports/stress_set3_pre_fix.md
 benchmarks/reports/*.pdf
+!benchmarks/reports/quadgate_v012_executive_summary.pdf
 
 # Agent & Launch-Kit Isolation (NEVER commit to public repo)
 .launch/

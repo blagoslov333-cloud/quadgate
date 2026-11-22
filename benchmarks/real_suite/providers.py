@@ -7,6 +7,7 @@ import json
 import os
 import random
 import re
+import threading
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -166,6 +167,163 @@ def compute_google_call_cost_usd(
     ) / 1_000_000.0
 
 
+class BudgetExceededError(RuntimeError):
+    """Raised before dispatch when remaining spend headroom cannot cover a call."""
+
+
+class BillingDepletedError(RuntimeError):
+    """Raised immediately on HTTP 402 / payment-required errors to abort further calls."""
+
+
+def _is_billing_402_error(status: int | None, body_text: str) -> bool:
+    # Never inspect successful HTTP payloads (e.g. benchmark texts mentioning "billing" or "required").
+    if status is not None and status < 400:
+        return False
+    if status == 402:
+        return True
+    if status is not None and status not in (400, 403):
+        return False
+    low = body_text.lower()
+    return (
+        "payment required" in low
+        or "http 402" in low
+        or "insufficient credit" in low
+        or "insufficient balance" in low
+        or ("billing" in low and ("disabled" in low or "delinquent" in low or "required" in low))
+    )
+
+
+def estimate_worst_case_call_usd(
+    model: str,
+    *,
+    system_prompt: str | None,
+    messages: list[dict[str, Any]],
+    max_output_tokens: int,
+) -> float:
+    """Compute a conservative upper bound (USD) for pre-dispatch budget reservation."""
+    spec = LIVE_MODEL_PRICING.get(model)
+    if not spec:
+        return 0.0
+    total_bytes = len((system_prompt or "").encode("utf-8"))
+    for msg in messages:
+        total_bytes += len(str(msg.get("text", "")).encode("utf-8")) + 64
+    # UTF-8 byte count + 512 framing tokens strictly upper-bounds BPE prompt tokens.
+    est_input_tokens = max(512, total_bytes + 512)
+    # 2x margin covers both candidatesTokenCount and any thoughtsTokenCount slack.
+    est_output_tokens = max(1, int(max_output_tokens * 2.0) + 128)
+    return (
+        est_input_tokens * float(spec["input"])
+        + est_output_tokens * float(spec["output"])
+    ) / 1_000_000.0
+
+
+class LiveBudgetGuard:
+    """Thread-safe reservation & settlement ledger enforcing a hard USD cap and 402 breaker."""
+
+    def __init__(self, max_spend_usd: float | None = None) -> None:
+        self.max_spend_usd: float | None = (
+            max(0.0, float(max_spend_usd)) if max_spend_usd is not None else None
+        )
+        self._lock = threading.Lock()
+        self.spent_usd: float = 0.0
+        self.reserved_usd: float = 0.0
+        self.calls_committed: int = 0
+        self.calls_rejected_budget: int = 0
+        self.aborted_reason: str | None = None
+        self.aborted_detail: str = ""
+        self._next_res_id: int = 1
+        self._reservations: dict[int, float] = {}
+
+    def remaining_headroom_usd(self) -> float:
+        """Return remaining unreserved budget in USD (inf if uncapped)."""
+        with self._lock:
+            if self.max_spend_usd is None:
+                return float("inf")
+            return max(0.0, self.max_spend_usd - (self.spent_usd + self.reserved_usd))
+
+    def is_billing_aborted(self) -> bool:
+        with self._lock:
+            return self.aborted_reason == "billing_402"
+
+    def check_before_job(self, min_headroom_usd: float = 0.0) -> None:
+        """Verify guard is not billing-aborted and still has headroom >= min_headroom_usd."""
+        with self._lock:
+            if self.aborted_reason == "billing_402":
+                raise BillingDepletedError(
+                    self.aborted_detail or "HTTP 402 billing depletion circuit breaker tripped."
+                )
+            if self.max_spend_usd is None:
+                return
+            headroom = self.max_spend_usd - (self.spent_usd + self.reserved_usd)
+            if headroom <= 1e-12 or headroom + 1e-12 < float(min_headroom_usd):
+                raise BudgetExceededError(
+                    f"Budget exhausted: spent=${self.spent_usd:.6f}, "
+                    f"reserved=${self.reserved_usd:.6f}, cap=${self.max_spend_usd:.6f}"
+                )
+
+    def try_reserve(self, estimated_max_usd: float) -> int:
+        """Atomically reserve worst-case cost before dispatching a live API call."""
+        est = max(0.0, float(estimated_max_usd))
+        with self._lock:
+            if self.aborted_reason == "billing_402":
+                raise BillingDepletedError(
+                    self.aborted_detail or "HTTP 402 billing depletion circuit breaker tripped."
+                )
+            if self.max_spend_usd is not None:
+                projected = self.spent_usd + self.reserved_usd + est
+                if projected > self.max_spend_usd + 1e-12:
+                    self.calls_rejected_budget += 1
+                    raise BudgetExceededError(
+                        f"Call reserve ${est:.6f} would exceed cap ${self.max_spend_usd:.6f} "
+                        f"(spent=${self.spent_usd:.6f}, reserved=${self.reserved_usd:.6f})"
+                    )
+            res_id = self._next_res_id
+            self._next_res_id += 1
+            self._reservations[res_id] = est
+            self.reserved_usd = sum(self._reservations.values())
+            return res_id
+
+    def settle(self, res_id: int, actual_usd: float) -> None:
+        """Release reservation res_id and record actual USD cost atomically."""
+        actual = max(0.0, float(actual_usd))
+        with self._lock:
+            self._reservations.pop(res_id, 0.0)
+            self.reserved_usd = sum(self._reservations.values()) if self._reservations else 0.0
+            self.spent_usd += actual
+            self.calls_committed += 1
+
+    def release(self, res_id: int) -> None:
+        """Release reservation res_id with zero spend on aborted/unbilled failures."""
+        with self._lock:
+            self._reservations.pop(res_id, 0.0)
+            self.reserved_usd = sum(self._reservations.values()) if self._reservations else 0.0
+
+    def trip_billing_402(self, detail: str) -> None:
+        """Latch instant circuit breaker on HTTP 402 / billing errors."""
+        with self._lock:
+            if self.aborted_reason != "billing_402":
+                self.aborted_reason = "billing_402"
+                self.aborted_detail = str(detail)[:300]
+
+    def snapshot(self) -> dict[str, Any]:
+        with self._lock:
+            rem = (
+                max(0.0, self.max_spend_usd - (self.spent_usd + self.reserved_usd))
+                if self.max_spend_usd is not None
+                else None
+            )
+            return {
+                "max_spend_usd": self.max_spend_usd,
+                "spent_usd": self.spent_usd,
+                "reserved_usd": self.reserved_usd,
+                "remaining_usd": rem,
+                "calls_committed": self.calls_committed,
+                "calls_rejected_budget": self.calls_rejected_budget,
+                "aborted_reason": self.aborted_reason,
+                "aborted_detail": self.aborted_detail,
+            }
+
+
 @dataclass(slots=True)
 class LLMCallResult:
     """Structured telemetry & text output from a single live API call."""
@@ -179,6 +337,7 @@ class LLMCallResult:
     thoughts_output_tokens: int = 0
     cost_usd: float = 0.0
     latency_ms: float = 0.0
+    finish_reason: str = ""
     raw_usage: dict[str, Any] = field(default_factory=dict)
 
     @property
@@ -266,13 +425,19 @@ class LiveLLMClient:
         *,
         api_key: str | None = None,
         base_url: str = "https://generativelanguage.googleapis.com",
-        request_timeout_s: float = 90.0,
+        request_timeout_s: float = 120.0,
         max_attempts: int = 7,
+        budget_guard: LiveBudgetGuard | None = None,
+        max_output_tokens_cap: int | None = None,
     ) -> None:
         self.api_key = (api_key or resolve_live_google_api_key()).strip()
         self.base_url = base_url.rstrip("/")
         self.request_timeout_s = float(request_timeout_s)
         self.max_attempts = max(1, int(max_attempts))
+        self.budget_guard = budget_guard
+        self.max_output_tokens_cap = (
+            max(1, int(max_output_tokens_cap)) if max_output_tokens_cap is not None else None
+        )
         self._sessions: WeakKeyDictionary[asyncio.AbstractEventLoop, aiohttp.ClientSession] = (
             WeakKeyDictionary()
         )
@@ -344,9 +509,14 @@ class LiveLLMClient:
                 text = str(m.get("text", ""))
                 contents.append({"role": role, "parts": [{"text": text}]})
 
+        effective_max_out = (
+            min(int(max_output_tokens), int(self.max_output_tokens_cap))
+            if self.max_output_tokens_cap is not None
+            else int(max_output_tokens)
+        )
         gen_cfg: dict[str, Any] = {
             "temperature": temperature,
-            "maxOutputTokens": max_output_tokens,
+            "maxOutputTokens": effective_max_out,
         }
         if json_mode and supports_json_mime:
             gen_cfg["responseMimeType"] = "application/json"
@@ -368,106 +538,170 @@ class LiveLLMClient:
         session = self._get_session()
         last_err: Exception | None = None
 
-        for attempt in range(self.max_attempts):
-            t0 = time.perf_counter()
-            try:
-                async with sem, session.post(url, headers=headers, json=payload) as resp:
-                    raw_body = await resp.text()
-                    wall_ms = (time.perf_counter() - t0) * 1000.0
-                    status = resp.status
-                    retry_after_hdr = resp.headers.get("Retry-After")
-            except (TimeoutError, aiohttp.ClientError, OSError) as exc:
-                last_err = exc
-                if attempt + 1 < self.max_attempts:
-                    delay = min(30.0, (1.5 ** attempt) + random.uniform(0.1, 0.7))
-                    await asyncio.sleep(delay)
-                    continue
-                raise RuntimeError(f"Network error calling {model}: {exc}") from exc
-
-            try:
-                body = json.loads(raw_body) if raw_body.strip() else {}
-            except json.JSONDecodeError:
-                body = {"_raw": raw_body[:500]}
-
-            if status == 400 and json_mode and supports_json_mime and "response_mime_type" in raw_body.lower():
-                # Graceful one-time fallback if a model rejects responseMimeType dynamically
-                gen_cfg.pop("responseMimeType", None)
-                supports_json_mime = False
-                continue
-
-            if status in (429, 500, 502, 503, 504):
-                last_err = RuntimeError(f"{model} HTTP {status}: {str(body)[:240]}")
-                if attempt + 1 < self.max_attempts:
-                    hint_s = None
-                    if retry_after_hdr:
-                        try:
-                            hint_s = float(retry_after_hdr)
-                        except ValueError:
-                            hint_s = None
-                    if hint_s is None:
-                        m = _RETRY_IN_RE.search(raw_body)
-                        if m:
-                            hint_s = float(m.group(1))
-                    base = (hint_s + 1.0) if hint_s is not None else min(30.0, 2.0 * (1.6 ** attempt))
-                    await asyncio.sleep(min(45.0, base + random.uniform(0.1, 0.8)))
-                    continue
-                raise last_err
-
-            if status >= 400:
-                raise RuntimeError(f"{model} HTTP {status}: {str(body)[:400]}")
-
-            candidates = body.get("candidates") or []
-            parts: list[dict[str, Any]] = []
-            if candidates and isinstance(candidates[0], dict):
-                content = candidates[0].get("content") or {}
-                parts = [p for p in (content.get("parts") or []) if isinstance(p, dict)]
-
-            ans_chunks: list[str] = []
-            thought_chunks: list[str] = []
-            for p in parts:
-                txt = str(p.get("text") or "")
-                if p.get("thought"):
-                    thought_chunks.append(txt)
-                else:
-                    ans_chunks.append(txt)
-
-            usage = body.get("usageMetadata")
-            usage_dict = usage if isinstance(usage, dict) else {}
-            prompt_tok = max(0, int(usage_dict.get("promptTokenCount") or 0))
-            cached_tok = max(0, int(usage_dict.get("cachedContentTokenCount") or 0))
-            uncached_in = max(0, prompt_tok - cached_tok)
-            cand_out = max(0, int(usage_dict.get("candidatesTokenCount") or 0))
-            thoughts_out = max(0, int(usage_dict.get("thoughtsTokenCount") or 0))
-            billable_out = cand_out + thoughts_out
-            cost_usd = compute_google_call_cost_usd(model, uncached_in, cached_tok, billable_out)
-
-            return LLMCallResult(
-                model=model,
-                text="".join(ans_chunks).strip(),
-                thought_text="".join(thought_chunks).strip(),
-                uncached_input_tokens=uncached_in,
-                cached_input_tokens=cached_tok,
-                candidates_output_tokens=cand_out,
-                thoughts_output_tokens=thoughts_out,
-                cost_usd=cost_usd,
-                latency_ms=wall_ms,
-                raw_usage=usage_dict,
+        res_id: int | None = None
+        if self.budget_guard is not None:
+            est_usd = estimate_worst_case_call_usd(
+                model,
+                system_prompt=system_prompt,
+                messages=messages,
+                max_output_tokens=effective_max_out,
             )
+            res_id = self.budget_guard.try_reserve(est_usd)
+        settled = False
 
-        raise RuntimeError(f"Exhausted retries calling {model}: {last_err}")
+        try:
+            for attempt in range(self.max_attempts):
+                if self.budget_guard is not None and self.budget_guard.is_billing_aborted():
+                    raise BillingDepletedError(
+                        self.budget_guard.aborted_detail
+                        or "HTTP 402 billing depletion circuit breaker tripped."
+                    )
+                t0 = time.perf_counter()
+                try:
+                    async with sem, session.post(url, headers=headers, json=payload) as resp:
+                        raw_body = await resp.text()
+                        wall_ms = (time.perf_counter() - t0) * 1000.0
+                        status = resp.status
+                        retry_after_hdr = resp.headers.get("Retry-After")
+                except (TimeoutError, aiohttp.ClientError, OSError) as exc:
+                    last_err = exc
+                    if attempt + 1 < self.max_attempts:
+                        delay = min(30.0, (1.5 ** attempt) + random.uniform(0.1, 0.7))
+                        await asyncio.sleep(delay)
+                        continue
+                    raise RuntimeError(f"Network error calling {model}: {exc}") from exc
+
+                try:
+                    body = json.loads(raw_body) if raw_body.strip() else {}
+                except json.JSONDecodeError:
+                    body = {"_raw": raw_body[:500]}
+
+                if _is_billing_402_error(status, raw_body):
+                    detail = f"{model} HTTP {status}: {str(body)[:300]}"
+                    if self.budget_guard is not None:
+                        self.budget_guard.trip_billing_402(detail)
+                    raise BillingDepletedError(detail)
+
+                if status == 400 and json_mode and supports_json_mime and "response_mime_type" in raw_body.lower():
+                    # Graceful one-time fallback if a model rejects responseMimeType dynamically
+                    gen_cfg.pop("responseMimeType", None)
+                    supports_json_mime = False
+                    continue
+
+                if status in (429, 500, 502, 503, 504):
+                    last_err = RuntimeError(f"{model} HTTP {status}: {str(body)[:240]}")
+                    if attempt + 1 < self.max_attempts:
+                        hint_s = None
+                        if retry_after_hdr:
+                            try:
+                                hint_s = float(retry_after_hdr)
+                            except ValueError:
+                                hint_s = None
+                        if hint_s is None:
+                            retry_match = _RETRY_IN_RE.search(raw_body)
+                            if retry_match:
+                                hint_s = float(retry_match.group(1))
+                        base = (hint_s + 1.0) if hint_s is not None else min(30.0, 2.0 * (1.6 ** attempt))
+                        await asyncio.sleep(min(45.0, base + random.uniform(0.1, 0.8)))
+                        continue
+                    raise last_err
+
+                if status >= 400:
+                    raise RuntimeError(f"{model} HTTP {status}: {str(body)[:400]}")
+
+                candidates = body.get("candidates") or []
+                parts: list[dict[str, Any]] = []
+                finish_reason = ""
+                if candidates and isinstance(candidates[0], dict):
+                    finish_reason = str(candidates[0].get("finishReason") or "")
+                    content = candidates[0].get("content") or {}
+                    parts = [p for p in (content.get("parts") or []) if isinstance(p, dict)]
+
+                ans_chunks: list[str] = []
+                thought_chunks: list[str] = []
+                for p in parts:
+                    txt = str(p.get("text") or "")
+                    if p.get("thought"):
+                        thought_chunks.append(txt)
+                    else:
+                        ans_chunks.append(txt)
+
+                text = "".join(ans_chunks).strip()
+
+                usage = body.get("usageMetadata")
+                usage_dict = usage if isinstance(usage, dict) else {}
+                prompt_tok = max(0, int(usage_dict.get("promptTokenCount") or 0))
+                cached_tok = max(0, int(usage_dict.get("cachedContentTokenCount") or 0))
+                uncached_in = max(0, prompt_tok - cached_tok)
+                cand_out = max(0, int(usage_dict.get("candidatesTokenCount") or 0))
+                thoughts_out = max(0, int(usage_dict.get("thoughtsTokenCount") or 0))
+                billable_out = cand_out + thoughts_out
+                cost_usd = compute_google_call_cost_usd(model, uncached_in, cached_tok, billable_out)
+
+                if not text and ((json_mode and supports_json_mime) or attempt + 1 < self.max_attempts):
+                    last_err = RuntimeError(
+                        f"{model} returned empty response (finish_reason={finish_reason!r})"
+                    )
+                    if self.budget_guard is not None and res_id is not None:
+                        self.budget_guard.settle(res_id, cost_usd)
+                        res_id = None
+                        res_id = self.budget_guard.try_reserve(est_usd)
+                    if json_mode and supports_json_mime:
+                        gen_cfg.pop("responseMimeType", None)
+                        supports_json_mime = False
+                    else:
+                        await asyncio.sleep(min(2.0, 0.5 * (attempt + 1)))
+                    continue
+
+                if self.budget_guard is not None and res_id is not None:
+                    self.budget_guard.settle(res_id, cost_usd)
+                    settled = True
+
+                return LLMCallResult(
+                    model=model,
+                    text=text,
+                    thought_text="".join(thought_chunks).strip(),
+                    finish_reason=finish_reason,
+                    uncached_input_tokens=uncached_in,
+                    cached_input_tokens=cached_tok,
+                    candidates_output_tokens=cand_out,
+                    thoughts_output_tokens=thoughts_out,
+                    cost_usd=cost_usd,
+                    latency_ms=wall_ms,
+                    raw_usage=usage_dict,
+                )
+
+            raise RuntimeError(f"Exhausted retries calling {model}: {last_err}")
+        finally:
+            if not settled and self.budget_guard is not None and res_id is not None:
+                self.budget_guard.release(res_id)
 
 
 class SpyDecision1Driver(ClassifierDriver):
     """Wraps live Decision1Driver to record real classifier calls, tokens, latency, and USD cost."""
 
-    def __init__(self, inner: Decision1Driver) -> None:
+    def __init__(
+        self,
+        inner: Decision1Driver,
+        *,
+        budget_guard: LiveBudgetGuard | None = None,
+    ) -> None:
         self._inner = inner
+        self.budget_guard = budget_guard
         self.calls: int = 0
         self.tokens_used: int = 0
         self.cost_usd: float = 0.0
         self.driver_latency_ms: float = 0.0
         self.wall_ms: float = 0.0
         super().__init__(calibration_profile=inner.calibration_profile)
+
+    def _estimate_d1_reserve_usd(self, request: ClassifierRequest) -> float:
+        q_bytes = len(str(getattr(request, "query_text", "") or "").encode("utf-8"))
+        head_bytes = sum(
+            len(str(getattr(h, "candidate_text", "") or "").encode("utf-8")) + 16
+            for h in (getattr(request, "heads", None) or ())
+        )
+        return max(0.001, (q_bytes + head_bytes + 512) * 0.10 / 1_000_000.0)
 
     def reset_counters(self) -> None:
         self.calls = 0
@@ -493,26 +727,54 @@ class SpyDecision1Driver(ClassifierDriver):
     def capabilities(self) -> DriverCapabilities:
         return self._inner.capabilities
 
+    async def _call_guarded(
+        self,
+        request: ClassifierRequest,
+        fn: Any,
+        extract_metrics: Any,
+    ) -> Any:
+        res_id: int | None = None
+        if self.budget_guard is not None:
+            res_id = self.budget_guard.try_reserve(self._estimate_d1_reserve_usd(request))
+        settled = False
+        try:
+            t0 = time.perf_counter()
+            out = await fn(request)
+            self.wall_ms += (time.perf_counter() - t0) * 1000.0
+            tokens, call_cost, driver_ms = extract_metrics(out)
+            self.calls += 1
+            self.tokens_used += int(tokens)
+            self.cost_usd += float(call_cost)
+            self.driver_latency_ms += float(driver_ms)
+            if self.budget_guard is not None and res_id is not None:
+                self.budget_guard.settle(res_id, float(call_cost))
+                settled = True
+            return out
+        except Exception as exc:
+            if _is_billing_402_error(None, str(exc)):
+                if self.budget_guard is not None:
+                    self.budget_guard.trip_billing_402(f"Decision1: {exc}")
+                raise BillingDepletedError(f"Decision1 billing depleted: {exc}") from exc
+            raise
+        finally:
+            if not settled and self.budget_guard is not None and res_id is not None:
+                self.budget_guard.release(res_id)
+
     async def score_raw(self, request: ClassifierRequest) -> dict[str, float]:
-        t0 = time.perf_counter()
-        scores = await self._inner.score_raw(request)
-        self.wall_ms += (time.perf_counter() - t0) * 1000.0
-        self.calls += 1
-        self.tokens_used += int(self._inner.last_tokens_used)
-        self.cost_usd += float(self._inner.last_cost_usd)
-        return scores
+        return await self._call_guarded(
+            request,
+            self._inner.score_raw,
+            lambda _out: (self._inner.last_tokens_used, self._inner.last_cost_usd, 0.0),
+        )
 
     async def classify(self, request: ClassifierRequest) -> ClassifierResponse:
         if self.capabilities.is_cloud and not request.cloud_egress_allowed:
             raise PermissionError("Cloud classifier egress blocked by Tier-1 Privacy Air-Gap.")
-        t0 = time.perf_counter()
-        resp = await self._inner.classify(request)
-        self.wall_ms += (time.perf_counter() - t0) * 1000.0
-        self.calls += 1
-        self.tokens_used += int(resp.tokens_used)
-        self.cost_usd += float(resp.estimated_cost_usd)
-        self.driver_latency_ms += float(resp.driver_latency_ms)
-        return resp
+        return await self._call_guarded(
+            request,
+            self._inner.classify,
+            lambda resp: (resp.tokens_used, resp.estimated_cost_usd, resp.driver_latency_ms),
+        )
 
     async def health_check(self) -> bool:
         return await self._inner.health_check()
@@ -525,6 +787,7 @@ def build_spy_decision1_driver(
     *,
     calibration_path: Path | None = None,
     retry_429_max_wait_s: float = 65.0,
+    budget_guard: LiveBudgetGuard | None = None,
 ) -> SpyDecision1Driver:
     """Instantiate a calibrated live Decision1Driver wrapped in telemetry instrumentation."""
     cal_path = calibration_path or Path("benchmarks/reports/calibration_decision1.json")
@@ -539,4 +802,4 @@ def build_spy_decision1_driver(
         max_heads=1000,
         retry_429_max_wait_s=retry_429_max_wait_s,
     )
-    return SpyDecision1Driver(inner)
+    return SpyDecision1Driver(inner, budget_guard=budget_guard)

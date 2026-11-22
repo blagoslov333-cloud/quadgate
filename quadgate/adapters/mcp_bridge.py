@@ -15,6 +15,7 @@ from typing import Any, Final, TextIO
 
 from pydantic import ValidationError
 
+from quadgate import __version__
 from quadgate.adapters.base import HarnessAdapter
 from quadgate.contracts import (
     CartridgeSpec,
@@ -34,7 +35,7 @@ from quadgate.shim import check_stage2a_deterministic_security
 
 MCP_PROTOCOL_VERSION: Final[str] = "2024-11-05"
 MCP_SERVER_NAME: Final[str] = "quadgate-mcp"
-MCP_SERVER_VERSION: Final[str] = "0.1.1"
+MCP_SERVER_VERSION: Final[str] = __version__
 
 _SUBAGENT_TOOL_NAMES: Final[frozenset[str]] = frozenset({"invoke_subagent", "Task"})
 

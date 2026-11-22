@@ -756,11 +756,20 @@ class SelfHealingEngine:
         self,
         event: GateEvent,
         oracle_error: str,
+        *,
+        failed_files: Sequence[str] | None = None,
+        record_file_failure: bool = True,
+        revert_files: bool = True,
     ) -> GateVerdict:
         """Revert failed floor/mid edits on strike 0 and promote once, or halt at strike >= 1."""
         t0 = time.perf_counter()
         effective_ws, ws_hash = self._resolve_workspace(event.workspace_root)
         touched_rel = _dedupe_paths(event.touched_files, effective_ws)
+        target_rel = (
+            _dedupe_paths(failed_files, effective_ws)
+            if failed_files is not None
+            else touched_rel
+        )
         oracle_msg = oracle_error.strip() or "Truth oracle verification failed"
 
         with self._lock:
@@ -775,11 +784,13 @@ class SelfHealingEngine:
         if effective_strike == 0 and (
             event.current_tier == ModelTier.FLOOR or event.current_tier == ModelTier.MID
         ):
-            reverted = await asyncio.to_thread(
-                _revert_touched_files_sync,
-                effective_ws,
-                touched_rel,
-            )
+            reverted: list[str] = []
+            if revert_files and target_rel:
+                reverted = await asyncio.to_thread(
+                    _revert_touched_files_sync,
+                    effective_ws,
+                    target_rel,
+                )
             current_tier = event.current_tier
             next_tier = ModelTier.MID if current_tier == ModelTier.FLOOR else ModelTier.FRONTIER
             next_model = self.tiers.mid if next_tier == ModelTier.MID else self.tiers.frontier
@@ -809,9 +820,9 @@ class SelfHealingEngine:
                             now_ns,
                         ),
                     )
-                if touched_rel:
+                if record_file_failure and target_rel:
                     self.record_file_outcome(
-                        touched_rel,
+                        target_rel,
                         passed=False,
                         workspace_root=effective_ws,
                     )
@@ -858,14 +869,18 @@ class SelfHealingEngine:
                         now_ns,
                     ),
                 )
-            if touched_rel:
+            if record_file_failure and target_rel:
                 self.record_file_outcome(
-                    touched_rel,
+                    target_rel,
                     passed=False,
                     workspace_root=effective_ws,
                 )
 
-        violated_path = touched_rel[0] if touched_rel else None
+        violated_path = (
+            target_rel[0]
+            if target_rel
+            else (touched_rel[0] if touched_rel else None)
+        )
         remediation = (
             f"One-strike circuit breaker halted promotion after Gate 4 failure ({oracle_msg}). "
             "Inspect failing artifacts and resolve manually before retrying."

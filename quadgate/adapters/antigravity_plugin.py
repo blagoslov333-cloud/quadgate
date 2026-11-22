@@ -312,7 +312,7 @@ def _is_daemon_healthy(host: str, port: int, token_path: str) -> bool:
     headers: dict[str, str] = {"Accept": "application/json"}
     if token:
         headers["Authorization"] = f"Bearer {token}"
-    conn = http.client.HTTPConnection(host, int(port), timeout=0.20)
+    conn = http.client.HTTPConnection(host, int(port), timeout=0.50)
     try:
         conn.request("GET", "/v1/health", headers=headers)
         resp = conn.getresponse()
@@ -900,7 +900,7 @@ def _read_transcript_records(transcript_path: str | None) -> list[dict[str, Any]
         with path.open("rb") as fh:
             fh.seek(0, os.SEEK_END)
             size = fh.tell()
-            start = max(0, size - 196_608)
+            start = max(0, size - 524_288)
             fh.seek(start)
             raw_bytes = fh.read()
         raw_text = raw_bytes.decode("utf-8", errors="replace")
@@ -988,7 +988,7 @@ def _collect_transcript_turn_context(
         records = _read_transcript_records(transcript_path)
         prompt, touched, work_tools, snippets, has_trailing_reply = _extract_turn_slice(records)
 
-    evidence = "\n\n".join(snippets[-2:]) if snippets else None
+    evidence = "\n\n".join(snippets[-4:]) if snippets else None
     return prompt, touched, work_tools, evidence, has_trailing_reply
 
 
@@ -1044,7 +1044,7 @@ def _forward(event_payload: dict[str, Any], home_dir: Path) -> dict[str, Any] | 
     )
 
 
-_MODEL_SPLIT_RE = re.compile(r"[-_./\s]+")
+_MODEL_SPLIT_RE = re.compile(r"[-_./\s()\[\]]+")
 _DIFF_ARG_KEYS = ("diff_text", "CodeContent", "ReplacementContent", "Replacement", "diff", "patch", "content", "new_string")
 
 
@@ -1071,7 +1071,7 @@ def _infer_tier_stdlib(value: Any) -> str | None:
         return "floor"
     if tokens & {"flash", "sonnet"} or norm == "gpt_oss_120b_medium":
         return "mid"
-    if tokens & {"pro", "opus", "argon", "carbon", "hydrogen", "orchestrator"}:
+    if tokens & {"pro", "opus", "argon", "carbon", "hydrogen", "neon", "orchestrator"}:
         return "frontier"
     return None
 

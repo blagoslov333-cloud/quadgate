@@ -276,7 +276,36 @@ _LOW_COMPLEXITY_RE = re.compile(
     re.IGNORECASE,
 )
 _EXCLUDED_WALK_DIRS = frozenset(
-    {".git", "node_modules", ".venv", "venv", "__pycache__", "dist", "build", ".pytest_cache"}
+    {
+        ".git",
+        "node_modules",
+        ".venv",
+        "venv",
+        "__pycache__",
+        "dist",
+        "build",
+        ".pytest_cache",
+        ".next",
+        ".nuxt",
+        ".svelte-kit",
+        ".cache",
+        ".turbo",
+        "target",
+        "out",
+        "coverage",
+        "vendor",
+        ".mypy_cache",
+        ".ruff_cache",
+        ".tox",
+        ".eggs",
+        "site-packages",
+        "env",
+        "tmp",
+        "Pods",
+        "bin",
+        "obj",
+        "playwright-report",
+    }
 )
 _ZERO_DECIMAL_CURRENCIES = frozenset({"JPY", "KRW", "VND"})
 _THREE_DECIMAL_CURRENCIES = frozenset({"BHD", "JOD", "KWD", "OMR", "TND"})
@@ -1109,8 +1138,8 @@ class GateEngine:
         ]
         self._gate2_strikes: dict[tuple[str, str], int] = {}
         self._airgapped_sessions: set[str] = set()
-        self._ws_has_private_cache: dict[str, tuple[float, bool]] = {}
-        self._private_tokens_cache: dict[str, tuple[float, dict[str, str]]] = {}
+        self._ws_has_private_cache: dict[str, tuple[float, int, bool]] = {}
+        self._private_tokens_cache: dict[str, tuple[float, int, dict[str, str]]] = {}
 
     def _workspace_has_private_files(self, workspace_root: str) -> bool:
         if not workspace_root:
@@ -1118,27 +1147,20 @@ class GateEngine:
         now = time.monotonic()
         ws_path = Path(workspace_root)
         try:
-            root_mtime_ns = ws_path.stat().st_mtime_ns if ws_path.is_dir() else 0
+            if not ws_path.is_dir():
+                return False
+            env_path = ws_path / ".env"
+            env_mtime_ns = env_path.stat().st_mtime_ns if env_path.is_file() else 0
+            root_mtime_ns = ws_path.stat().st_mtime_ns + env_mtime_ns
         except OSError:
             return False
         if not root_mtime_ns:
             return False
         cached = self._ws_has_private_cache.get(workspace_root)
         if cached is not None:
-            ts, prev_val = cached
-            if prev_val or (now - ts) < 2.0:
+            ts, cached_mtime_ns, prev_val = cached
+            if cached_mtime_ns == root_mtime_ns and (now - ts) < 30.0:
                 return prev_val
-
-        if self.indexer is not None and getattr(self.indexer, "_gists_by_path", None):
-            try:
-                idx_real = os.path.normcase(os.path.realpath(str(self.indexer.workspace_root)))
-                ws_real = os.path.normcase(os.path.realpath(str(ws_path)))
-                if idx_real == ws_real and hasattr(self.indexer, "has_private_files"):
-                    if self.indexer.has_private_files():
-                        self._ws_has_private_cache[workspace_root] = (now, True)
-                        return True
-            except OSError:
-                pass
 
         if self.fts_store is not None and hasattr(self.fts_store, "has_private_gists"):
             ws_hash = (
@@ -1147,10 +1169,25 @@ class GateEngine:
                 else _compute_workspace_hash(workspace_root)
             )
             if self.fts_store.has_private_gists(ws_hash):
-                self._ws_has_private_cache[workspace_root] = (now, True)
+                self._ws_has_private_cache[workspace_root] = (now, root_mtime_ns, True)
                 return True
 
         is_self_repo = (ws_path / "quadgate" / "kernel").is_dir()
+        if (
+            not is_self_repo
+            and self.indexer is not None
+            and hasattr(self.indexer, "has_private_files")
+        ):
+            try:
+                idx_real = os.path.normcase(os.path.realpath(str(self.indexer.workspace_root)))
+                ws_real = os.path.normcase(os.path.realpath(str(ws_path)))
+                if idx_real == ws_real:
+                    has_priv = bool(self.indexer.has_private_files())
+                    self._ws_has_private_cache[workspace_root] = (now, root_mtime_ns, has_priv)
+                    return has_priv
+            except OSError:
+                pass
+
         checker = self.fts_store if self.fts_store is not None else self._airgap_checker
         for root_str, dirnames, filenames in os.walk(ws_path):
             dirnames[:] = [
@@ -1170,9 +1207,9 @@ class GateEngine:
                     or not checker.check_air_gap(rel, workspace_root)
                     or is_sensitive_file(fpath, workspace_root)
                 ):
-                    self._ws_has_private_cache[workspace_root] = (now, True)
+                    self._ws_has_private_cache[workspace_root] = (now, root_mtime_ns, True)
                     return True
-        self._ws_has_private_cache[workspace_root] = (now, False)
+        self._ws_has_private_cache[workspace_root] = (now, root_mtime_ns, False)
         return False
 
     def _matches_private_glob(self, path_str: str, workspace_root: str) -> bool:
@@ -1520,7 +1557,11 @@ class GateEngine:
         if not raw_candidates and self.indexer is not None:
             ws_path = Path(event.workspace_root)
             if ws_path.exists():
-                _append_unique(self.indexer.index_workspace(incremental=True))
+                indexed_gists = await asyncio.to_thread(
+                    self.indexer.index_workspace,
+                    incremental=True,
+                )
+                _append_unique(indexed_gists)
 
         if not self._check_air_gap(
             text=prompt_text,
@@ -1733,15 +1774,27 @@ class GateEngine:
         if not workspace_root:
             return {}
         ws_path = Path(workspace_root)
-        if not ws_path.is_dir():
+        try:
+            if not ws_path.is_dir():
+                return {}
+            env_path = ws_path / ".env"
+            env_mtime_ns = env_path.stat().st_mtime_ns if env_path.is_file() else 0
+            root_mtime_ns = ws_path.stat().st_mtime_ns + env_mtime_ns
+        except OSError:
+            return {}
+        if not root_mtime_ns:
             return {}
 
         now = time.monotonic()
         cached = self._private_tokens_cache.get(workspace_root)
         if cached is not None:
-            ts, tokens_dict = cached
-            if (now - ts) < 2.0:
+            ts, cached_mtime_ns, tokens_dict = cached
+            if cached_mtime_ns == root_mtime_ns and (now - ts) < 30.0:
                 return tokens_dict
+
+        if not self._workspace_has_private_files(workspace_root):
+            self._private_tokens_cache[workspace_root] = (now, root_mtime_ns, {})
+            return {}
 
         is_self_repo = (ws_path / "quadgate" / "kernel").is_dir()
         tokens: dict[str, str] = {}
@@ -1828,7 +1881,7 @@ class GateEngine:
                         if len(v_clean) >= 8 and _KV_SECRET_KEY_RE.search(k_clean):
                             tokens[v_clean] = rel
 
-        self._private_tokens_cache[workspace_root] = (now, tokens)
+        self._private_tokens_cache[workspace_root] = (now, root_mtime_ns, tokens)
         return tokens
 
     async def evaluate_gate2_firewall(self, event: GateEvent) -> GateVerdict:
@@ -2271,6 +2324,13 @@ class GateEngine:
                 if task_items and "Tasks:" not in subagent_prompt:
                     subagent_prompt = f"{subagent_prompt}\nTasks: {'; '.join(task_items)}"
 
+        if (
+            self.indexer is not None
+            and not getattr(self.indexer, "_gists_by_path", None)
+            and Path(event.workspace_root).exists()
+        ):
+            await asyncio.to_thread(self.indexer.index_workspace, incremental=True)
+
         target_paths = self._resolve_gate3_targets(event, subagent_prompt)
 
         if self.indexer is not None and target_paths:
@@ -2442,10 +2502,13 @@ class GateEngine:
             latency_ms=(time.perf_counter() - t0) * 1000.0,
         )
 
-    async def _run_extension_oracle_commands(self, event: GateEvent) -> str | None:
+    async def _run_extension_oracle_commands_detailed(
+        self,
+        event: GateEvent,
+    ) -> tuple[str | None, list[str], bool]:
         cmds_by_ext = self.cartridge.truth_oracle.commands_by_extension
         if not cmds_by_ext:
-            return None
+            return None, [], False
 
         ws_path = Path(event.workspace_root or ".")
         timeout_s = max(0.05, self.cartridge.truth_oracle.timeout_ms / 1000.0)
@@ -2472,17 +2535,37 @@ class GateEngine:
                 try:
                     await asyncio.to_thread(py_compile.compile, str(candidate), doraise=True)
                 except (py_compile.PyCompileError, SyntaxError, OSError) as exc:
-                    return f"Truth oracle failed for {raw!r}: {exc}"
+                    return f"Truth oracle failed for {raw!r}: {exc}", [raw], False
                 continue
 
-            uses_file_placeholder = any("{file}" in tok or "{path}" in tok for tok in template)
+            is_tsc_cmd = (
+                len(template) >= 3 and template[:3] == ["npx", "--no-install", "tsc"]
+            ) or (bool(template) and Path(template[0]).stem.lower() == "tsc")
+
+            if len(template) >= 3 and template[:3] == ["npx", "--no-install", "tsc"]:
+                local_tsc = (
+                    ws_path
+                    / "node_modules"
+                    / ".bin"
+                    / ("tsc.cmd" if os.name == "nt" else "tsc")
+                )
+                if local_tsc.is_file():
+                    effective_template = [str(local_tsc), *template[3:]]
+                else:
+                    effective_template = list(template)
+            else:
+                effective_template = list(template)
+
+            uses_file_placeholder = any(
+                "{file}" in tok or "{path}" in tok for tok in effective_template
+            )
             argv = [
                 tok.replace("{file}", str(candidate)).replace("{path}", str(candidate))
-                for tok in template
+                for tok in effective_template
             ]
             if argv[0] in {"python", "python3"}:
                 argv[0] = sys.executable
-            else:
+            elif not Path(argv[0]).is_file():
                 which_exe = shutil.which(argv[0])
                 if which_exe is None:
                     continue
@@ -2496,6 +2579,11 @@ class GateEngine:
                 if ext in {".ts", ".tsx"} and not (ws_path / "tsconfig.json").is_file():
                     continue
 
+            cmd_timeout_s = (
+                max(timeout_s, 5.0)
+                if is_tsc_cmd and self.cartridge.truth_oracle.timeout_ms >= 500
+                else timeout_s
+            )
             cwd = str(ws_path) if ws_path.is_dir() else None
             proc = await asyncio.create_subprocess_exec(
                 *argv,
@@ -2504,13 +2592,21 @@ class GateEngine:
                 stderr=asyncio.subprocess.PIPE,
             )
             try:
-                stdout_b, stderr_b = await asyncio.wait_for(proc.communicate(), timeout=timeout_s)
+                stdout_b, stderr_b = await asyncio.wait_for(
+                    proc.communicate(),
+                    timeout=cmd_timeout_s,
+                )
             except asyncio.TimeoutError:
-                proc.kill()
+                try:
+                    proc.kill()
+                except ProcessLookupError:
+                    pass
                 await proc.wait()
                 return (
                     f"Truth oracle timed out after {self.cartridge.truth_oracle.timeout_ms}ms "
-                    f"for {raw!r}."
+                    f"for {raw!r}.",
+                    [],
+                    True,
                 )
 
             if proc.returncode != 0:
@@ -2519,9 +2615,13 @@ class GateEngine:
                     or stdout_b.decode("utf-8", errors="replace").strip()
                     or f"exit code {proc.returncode}"
                 )
-                return f"Truth oracle failed for {raw!r}: {err_msg}"
+                return f"Truth oracle failed for {raw!r}: {err_msg}", [raw], False
 
-        return None
+        return None, [], False
+
+    async def _run_extension_oracle_commands(self, event: GateEvent) -> str | None:
+        err_msg, _, _ = await self._run_extension_oracle_commands_detailed(event)
+        return err_msg
 
     def _gather_oracle_artifacts(self, event: GateEvent) -> list[tuple[str, str]]:
         ws_path = Path(event.workspace_root or ".")
@@ -3008,6 +3108,28 @@ class GateEngine:
             return None
         return handler(event, artifacts)
 
+    async def _record_clean_pass(self, event: GateEvent) -> None:
+        if (
+            self.healing is not None
+            and event.touched_files
+            and hasattr(self.healing, "record_file_outcome")
+        ):
+            fn = self.healing.record_file_outcome
+            try:
+                sig = inspect.signature(fn)
+                if "workspace_root" in sig.parameters:
+                    await _maybe_await(
+                        fn(
+                            list(event.touched_files),
+                            passed=True,
+                            workspace_root=event.workspace_root,
+                        )
+                    )
+                else:
+                    await _maybe_await(fn(list(event.touched_files), passed=True))
+            except (TypeError, ValueError):
+                pass
+
     async def _handle_gate4_failure_verdict(
         self,
         event: GateEvent,
@@ -3016,12 +3138,28 @@ class GateEngine:
         unaddressed_clauses: list[str] | None = None,
         cloud_egress_allowed: bool = True,
         t0: float,
+        failed_files: list[str] | None = None,
+        record_file_failure: bool = True,
+        revert_files: bool = True,
     ) -> GateVerdict:
         clauses = unaddressed_clauses or []
         if self.healing is not None and hasattr(self.healing, "handle_gate4_failure"):
-            verdict: GateVerdict = await _maybe_await(
-                self.healing.handle_gate4_failure(event, error_msg)
-            )
+            fn = self.healing.handle_gate4_failure
+            kwargs: dict[str, Any] = {}
+            try:
+                params = inspect.signature(fn).parameters
+                accepts_var_kw = any(
+                    p.kind == inspect.Parameter.VAR_KEYWORD for p in params.values()
+                )
+                if accepts_var_kw or "failed_files" in params:
+                    kwargs["failed_files"] = failed_files
+                if accepts_var_kw or "record_file_failure" in params:
+                    kwargs["record_file_failure"] = record_file_failure
+                if accepts_var_kw or "revert_files" in params:
+                    kwargs["revert_files"] = revert_files
+            except (TypeError, ValueError):
+                pass
+            verdict: GateVerdict = await _maybe_await(fn(event, error_msg, **kwargs))
             updates: dict[str, Any] = {
                 "cloud_egress_allowed": cloud_egress_allowed,
                 "latency_ms": max(verdict.latency_ms, (time.perf_counter() - t0) * 1000.0),
@@ -3047,6 +3185,11 @@ class GateEngine:
             )
 
         strike = max(1, event.strike_count + 1)
+        violated_path = (
+            failed_files[0]
+            if failed_files
+            else (event.touched_files[0] if event.touched_files else None)
+        )
         receipt = ViolationReceipt(
             rule_id="GATE4_TRUTH_ORACLE_FAILURE",
             score=1.0,
@@ -3054,7 +3197,7 @@ class GateEngine:
             remediation=error_msg,
             strike_count=strike,
             escalate_to_human=event.strike_count >= 1 or event.current_tier == ModelTier.FRONTIER,
-            violated_path=event.touched_files[0] if event.touched_files else None,
+            violated_path=violated_path,
         )
         return GateVerdict(
             action=VerdictAction.BLOCK,
@@ -3071,9 +3214,16 @@ class GateEngine:
         t0 = time.perf_counter()
 
         # 1. Sub-second Truth Oracle: extension commands + built-in cartridge checks
-        cmd_error = await self._run_extension_oracle_commands(event)
-        if cmd_error is not None:
-            return await self._handle_gate4_failure_verdict(event, cmd_error, t0=t0)
+        cmd_error, failed_files, cmd_timed_out = await self._run_extension_oracle_commands_detailed(
+            event
+        )
+        if cmd_error is not None and not cmd_timed_out:
+            return await self._handle_gate4_failure_verdict(
+                event,
+                cmd_error,
+                failed_files=failed_files,
+                t0=t0,
+            )
 
         artifacts = self._gather_oracle_artifacts(event)
         for check_name in self.cartridge.truth_oracle.checks:
@@ -3083,6 +3233,7 @@ class GateEngine:
 
         # 2. Directive completeness verification
         if not getattr(self.cartridge.truth_oracle, "check_clause_completeness", True):
+            await self._record_clean_pass(event)
             return GateVerdict(
                 action=VerdictAction.ALLOW,
                 gate=GateType.STOP_AUDIT,
@@ -3092,6 +3243,7 @@ class GateEngine:
 
         clauses = _extract_atomic_clauses(event.prompt_text or "")
         if not clauses:
+            await self._record_clean_pass(event)
             return GateVerdict(
                 action=VerdictAction.ALLOW,
                 gate=GateType.STOP_AUDIT,
@@ -3159,36 +3311,17 @@ class GateEngine:
                 if score < 0.60
             ]
             if (
-                0.60 <= p_completeness < self.thresholds.gate4_completeness_min
+                p_completeness < self.thresholds.gate4_completeness_min
                 and not unaddressed_clauses
             ):
                 unaddressed_clauses = [
                     clauses[idx]
                     for idx, score in enumerate(clause_scores)
                     if score < self.thresholds.gate4_completeness_min
-                ]
+                ] or list(clauses)
 
         if p_completeness >= self.thresholds.gate4_completeness_min:
-            if (
-                self.healing is not None
-                and event.touched_files
-                and hasattr(self.healing, "record_file_outcome")
-            ):
-                fn = self.healing.record_file_outcome
-                try:
-                    sig = inspect.signature(fn)
-                    if "workspace_root" in sig.parameters:
-                        await _maybe_await(
-                            fn(
-                                list(event.touched_files),
-                                passed=True,
-                                workspace_root=event.workspace_root,
-                            )
-                        )
-                    else:
-                        await _maybe_await(fn(list(event.touched_files), passed=True))
-                except (TypeError, ValueError):
-                    pass
+            await self._record_clean_pass(event)
             return GateVerdict(
                 action=VerdictAction.ALLOW,
                 gate=GateType.STOP_AUDIT,
@@ -3196,10 +3329,9 @@ class GateEngine:
                 latency_ms=(time.perf_counter() - t0) * 1000.0,
             )
 
-        if (
-            0.60 <= p_completeness < self.thresholds.gate4_completeness_min
-            and not event.continuation_active
-        ):
+        if not event.continuation_active and evidence_text:
+            if not unaddressed_clauses:
+                unaddressed_clauses = list(clauses)
             return GateVerdict(
                 action=VerdictAction.AUGMENT,
                 gate=GateType.STOP_AUDIT,
@@ -3218,6 +3350,8 @@ class GateEngine:
             unaddressed_clauses=unaddressed_clauses,
             cloud_egress_allowed=cloud_egress_allowed,
             t0=t0,
+            record_file_failure=False,
+            revert_files=False,
         )
 
 

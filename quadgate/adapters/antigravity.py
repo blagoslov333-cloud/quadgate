@@ -29,7 +29,7 @@ _FIREWALL_COMMAND = "qg-shim --harness antigravity --gate firewall"
 _SUBAGENT_COMMAND = "qg-shim --harness antigravity --gate subagent_governor"
 _STOP_COMMAND = "qg-shim --harness antigravity --gate stop_audit"
 
-_MODEL_TOKEN_SPLIT_RE = re.compile(r"[-_./\s]+")
+_MODEL_TOKEN_SPLIT_RE = re.compile(r"[-_./\s()\[\]]+")
 _TOUCHED_ARG_KEYS = (
     "TargetFile",
     "file_path",
@@ -125,7 +125,7 @@ def _infer_model_tier(value: Any) -> ModelTier | None:
         return ModelTier.FLOOR
     if tokens & {"flash", "sonnet"} or normalized == "gpt_oss_120b_medium":
         return ModelTier.MID
-    if tokens & {"pro", "opus", "argon", "carbon", "hydrogen", "orchestrator"}:
+    if tokens & {"pro", "opus", "argon", "carbon", "hydrogen", "neon", "orchestrator"}:
         return ModelTier.FRONTIER
     return None
 

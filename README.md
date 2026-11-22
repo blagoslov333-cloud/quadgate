@@ -9,7 +9,7 @@
 [![Release](https://img.shields.io/github/v/release/blagoslov333-cloud/quadgate)](https://github.com/blagoslov333-cloud/quadgate/releases)
 [![GitHub Stars](https://img.shields.io/github/stars/blagoslov333-cloud/quadgate?style=social)](https://github.com/blagoslov333-cloud/quadgate/stargazers)
 
-[Quickstart](#60-second-quickstart) • [Benchmarks](#reproducible-benchmarks) • [Architecture](#architecture) • [Integrations](#drop-in-integrations--ecosystem-presets) • [Contributing](CONTRIBUTING.md)
+[Prerequisites](#prerequisites) • [Quickstart](#60-second-quickstart) • [Benchmarks](#reproducible-benchmarks) • [Architecture](#architecture) • [Integrations](#drop-in-integrations--ecosystem-presets) • [Contributing](CONTRIBUTING.md)
 
 </div>
 
@@ -113,14 +113,68 @@ quadgate bench --live --suite all --runs 3
 
 ## 60-Second Quickstart
 
-Install from source (Python `3.11+`):
+### Prerequisites
+
+> **Plugin & Harness Users Note:** Even when QuadGate runs as a plugin inside **Antigravity**, **Claude Code**, **Codex CLI**, or **Cursor / MCP**, the harness hooks and MCP bridge execute your machine's local Python runtime and call the `quadgate` package on `PATH`. Install the prerequisites below before enabling any harness integration.
+
+| Requirement | Status | Details & Platform Notes |
+| :--- | :---: | :--- |
+| **Python `3.11` or `3.12`** (`>= 3.11` required) | **Required** | Recommend **`3.11` or `3.12`** (not `3.13+`) so `pip` uses pre-built binary wheels with **zero C/C++ compilation**. On Windows, check *"Add python.exe to PATH"* in the [python.org](https://www.python.org/downloads/) installer. |
+| **`pip >= 23.0`** or **[`uv`](https://docs.astral.sh/uv/)** | **Required** | `pip` ships with Python (`python -m pip install --upgrade pip`). If you work primarily in **non-Python stacks** (PHP, JS/TS, Go, Java, C#, etc.), [`uv`](https://docs.astral.sh/uv/) downloads and manages Python `3.12` automatically in one command. |
+| **Git `>= 2.25`** | **Required** | Needed to clone the repo, run Gate 1 Git co-change indexing, and perform clean Gate 4 hunk reverts. |
+| **C/C++ Build Tools** | *Optional fallback* | **Not needed** on Python `3.11` / `3.12` with `pip install -e .`. Only required if `pip` falls back to compiling native extensions (`tree-sitter`, `aiohttp`, `numpy`) from source on Python `3.13+` or non-standard platforms: **Windows** ([Microsoft C++ Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/), *"Desktop development with C++"* workload), **macOS** (`xcode-select --install`), **Linux** (`sudo apt-get install build-essential python3-dev`). |
+| **Microsoft VC++ Redistributable** | *Windows optional* | Only needed on fresh Windows systems if installing the optional `[local]` offline ONNX runtime (`onnxruntime`); core QuadGate (`zero_dep` / cloud drivers) does not need it. |
+
+Verify your environment before installing (zero external dependencies required):
 
 ```bash
-pip install -e ".[dev]"
+python --version   # Expect Python 3.11.x or 3.12.x
+git --version
 
+# Clone and run the built-in zero-dependency preflight check
+git clone https://github.com/blagoslov333-cloud/quadgate.git
+cd quadgate
+python scripts/check_prereqs.py
+```
+
+### Installation
+
+**Option A — Standard Install (Recommended, lightweight core only):**
+
+```bash
+python -m pip install --upgrade pip
+pip install -e .
+```
+
+This installs only the 4 core runtime dependencies (`aiohttp`, `pyyaml`, `pydantic`, `tree-sitter`) along with the `quadgate` and `qg-shim` CLIs.
+
+**Option B — Zero-Python-Setup with `uv` (Recommended for non-Python developers):**
+
+```bash
+uv venv --python 3.12
+uv pip install -e .
+```
+
+Activate the virtual environment before running `quadgate` (`.venv\Scripts\Activate.ps1` on Windows PowerShell, or `source .venv/bin/activate` on macOS/Linux).
+
+**Optional Extras:**
+
+```bash
 # Optional local INT8 ONNX cross-encoder inference runtime
 pip install -e ".[local]"
+
+# Optional contributor / benchmark dev suite (pytest, mypy, ruff, tree-sitter-language-pack)
+pip install -e ".[dev]"
 ```
+
+<details>
+<summary>Windows troubleshooting: <code>error: Microsoft Visual C++ 14.0 or greater is required</code></summary>
+
+1. **Use Python `3.11` or `3.12`** (or `uv venv --python 3.12`) — pre-built Windows wheels avoid C++ compilation completely.
+2. **Upgrade `pip` and install core only (`pip install -e .`)** instead of `.[dev]`, which pulls heavier compiled developer packages (`tree-sitter-language-pack`, `tokenizers`, `numpy`).
+3. If you specifically want to stay on Python `3.13+` or build native wheels from source, install [Microsoft C++ Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) and select the **"Desktop development with C++"** workload.
+
+</details>
 
 ### 1. Antigravity
 

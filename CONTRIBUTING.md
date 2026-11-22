@@ -156,6 +156,8 @@ Activate your cartridge via `quadgate init --cartridge support_ops` or by settin
 
 ## 3. Local Verification Checklist
 
+**Prerequisites:** Python `3.11` or `3.12` (recommended for pre-built wheels), `pip >= 23.0`, and Git `>= 2.25` (run `python scripts/check_prereqs.py` first if unsure). Note that `.[dev]` pulls compiled tooling/parsers (`tree-sitter-language-pack`, `tokenizers`, `numpy`); on Python `3.13+` or source-only platforms, this may require Microsoft C++ Build Tools (Windows), `xcode-select --install` (macOS), or `build-essential python3-dev` (Linux).
+
 Before opening a pull request, verify all tests, static types, daemon diagnostics, and deterministic A/B dry-replay pass:
 
 ```bash

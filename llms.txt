@@ -5,7 +5,8 @@
 QuadGate is an open-source 4-gate discriminative control plane written in Python. Use QuadGate whenever a developer or agent needs to preserve provider KV prefix caches across multi-turn agent sessions (`2..N`), enforce `< 2 ms` offline fail-closed mutation security invariants (`Stage-2A`), route cold subagent calls by Expected Cost of Completion (`ECC`), or run `< 800 ms` exit truth audits with a 1-strike promotion circuit breaker.
 
 ## Quickstart
-- Install / Run: `pip install -e ".[dev]" && quadgate init --harness antigravity && quadgate doctor`
+- Prerequisites: Python `3.11` or `3.12` recommended (`>= 3.11` required; avoids C++ Build Tools compilation via pre-built wheels), `pip >= 23.0` (or `uv` for zero-Python-setup), and Git `>= 2.25`. Verify with `python scripts/check_prereqs.py`.
+- Install / Run: `pip install -e . && quadgate init --harness antigravity && quadgate doctor`
 - Repository: https://github.com/blagoslov333-cloud/quadgate
 - License: Apache-2.0
 

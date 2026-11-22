@@ -6,6 +6,8 @@ import ast
 import json
 import re
 import struct
+import subprocess
+import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any
@@ -460,3 +462,50 @@ def test_ecosystem_example_presets_valid() -> None:
 
     cursor_data = json.loads(cursor_path.read_text(encoding="utf-8"))
     assert cursor_data["mcpServers"]["quadgate"] == {"command": "quadgate", "args": ["mcp"]}
+
+
+def test_prerequisites_docs_and_preflight_script() -> None:
+    readme = README_PATH.read_text(encoding="utf-8")
+    for marker in (
+        "### Prerequisites",
+        "3.11",
+        "3.12",
+        "C++ Build Tools",
+        "uv",
+        "pip install -e .",
+        "scripts/check_prereqs.py",
+    ):
+        assert marker in readme, f"README.md missing prerequisite marker: {marker!r}"
+
+    assert (
+        readme.index("## 60-Second Quickstart")
+        < readme.index("### Prerequisites")
+        < readme.index("quadgate init --harness antigravity")
+    )
+
+    plugin_readme = (EXAMPLES_DIR / "antigravity-plugin" / "README.md").read_text(
+        encoding="utf-8"
+    )
+    for marker in ("## Prerequisites", "3.11", "3.12", "C++ Build Tools"):
+        assert marker in plugin_readme, (
+            f"examples/antigravity-plugin/README.md missing marker: {marker!r}"
+        )
+
+    preflight_script = REPO_ROOT / "scripts" / "check_prereqs.py"
+    assert preflight_script.is_file(), "scripts/check_prereqs.py must exist."
+
+    proc = subprocess.run(
+        [sys.executable, str(preflight_script), "--json"],
+        capture_output=True,
+        text=True,
+        timeout=15,
+        check=False,
+    )
+    assert proc.returncode == 0, f"check_prereqs.py failed: {proc.stderr}"
+    payload = json.loads(proc.stdout)
+    assert payload["status"] in {"ok", "warn"}
+    assert isinstance(payload.get("python"), str) and payload["python"]
+    checks = payload.get("checks")
+    assert isinstance(checks, list)
+    check_names = {item["name"] for item in checks}
+    assert {"python", "pip", "git", "build_tools"} <= check_names

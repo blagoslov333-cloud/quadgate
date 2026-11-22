@@ -15,18 +15,33 @@
 
 ## 1. Installation
 
+Prerequisites (applies to CLI and harness plugins alike, since hooks invoke host `python`):
+- **Python `3.11` or `3.12` (recommended)** (`>= 3.11` required) — pre-built wheels avoid C/C++ compilation; check *"Add python.exe to PATH"* on Windows.
+- **`pip >= 23.0`** or **`uv`** (`uv venv --python 3.12` provisions Python automatically for non-Python stacks).
+- **Git `>= 2.25`** (source checkout, Gate 1 Git co-change indexing, Gate 4 clean hunk reverts).
+- **C/C++ Build Tools (optional fallback):** Only needed on Python `3.13+` or source builds (`Microsoft C++ Build Tools` on Windows, `xcode-select --install` on macOS, `build-essential python3-dev` on Linux). On Windows, the optional `[local]` ONNX runtime also uses the Microsoft VC++ Redistributable.
+
+Verify prerequisites before installing:
 ```bash
-# Core package + dev/test tools (zero-dep fallback, tree-sitter, SQLite FTS5)
-pip install -e ".[dev]"
+python scripts/check_prereqs.py
+```
+
+```bash
+# Lightweight core install (recommended default: zero-dep fallback, tree-sitter, SQLite FTS5)
+python -m pip install --upgrade pip
+pip install -e .
 
 # Optional local quantized INT8 ONNX cross-encoder runtime
 pip install -e ".[local]"
+
+# Optional contributor / benchmark dev & test tools
+pip install -e ".[dev]"
 ```
 
 Dependencies from `pyproject.toml`:
 - Core: `aiohttp>=3.9.0`, `pyyaml>=6.0.1`, `pydantic>=2.7.0`, `tree-sitter>=0.22.0`
 - `[local]` extra: `onnxruntime>=1.18.0`, `tokenizers>=0.19.0`, `numpy>=1.26.0`
-- `[dev]` extra: `pytest>=8.2.0`, `pytest-asyncio>=0.23.0`, `ruff>=0.5.0`
+- `[dev]` extra: `httpx[http2]>=0.27.0`, `mypy>=1.10.0`, `numpy>=1.26.0`, `pytest>=8.2.0`, `pytest-asyncio>=0.23.0`, `ruff>=0.5.0`, `tokenizers>=0.19.0`, `tree-sitter-language-pack>=0.7.0`
 
 ---
 

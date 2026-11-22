@@ -176,6 +176,17 @@ def _probe_running_daemon(
         port,
         "/v1/health",
         token=token or None,
+        timeout_s=2.0,
+    )
+    if status == 200 and health is not None:
+        return state, health
+    time.sleep(0.1)
+    status, health = _http_json_request(
+        "GET",
+        host,
+        port,
+        "/v1/health",
+        token=token or None,
         timeout_s=1.0,
     )
     if status == 200 and health is not None:
@@ -186,6 +197,20 @@ def _probe_running_daemon(
 def _is_pid_alive(pid: int) -> bool:
     if pid <= 0:
         return False
+    if os.name == "nt":
+        import ctypes
+
+        kernel32 = ctypes.windll.kernel32
+        handle = kernel32.OpenProcess(0x1000, False, int(pid))
+        if not handle:
+            return False
+        try:
+            exit_code = ctypes.c_ulong(0)
+            if not kernel32.GetExitCodeProcess(handle, ctypes.byref(exit_code)):
+                return False
+            return int(exit_code.value) == 259  # STILL_ACTIVE
+        finally:
+            kernel32.CloseHandle(handle)
     try:
         os.kill(pid, 0)
         return True
@@ -549,6 +574,25 @@ def _cmd_status(ns: argparse.Namespace) -> int:
         ]
         _render_output(payload, lines, as_json=as_json)
         return 0
+
+    if state is not None:
+        pid_alive = isinstance(state.get("pid"), int) and _is_pid_alive(int(state["pid"]))
+        if pid_alive:
+            payload = {
+                "status": "degraded",
+                "stale_state": False,
+                "pid": state.get("pid"),
+                "host": state.get("host", "127.0.0.1"),
+                "port": state.get("port"),
+                "state_path": str(state_path),
+                "health_error": "Daemon process is alive but /v1/health timed out or refused connection",
+            }
+            _render_output(
+                payload,
+                [f"QuadGate daemon: degraded (pid={payload['pid']}, /v1/health unresponsive)"],
+                as_json=as_json,
+            )
+            return 0
 
     stale = state is not None
     payload = {

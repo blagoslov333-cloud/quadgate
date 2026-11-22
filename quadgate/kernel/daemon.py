@@ -14,7 +14,7 @@ import tempfile
 import time
 import tomllib
 from collections import deque
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -76,6 +76,9 @@ class _WorkspaceContext:
     last_used_monotonic: float
     last_synced_monotonic: float = 0.0
     last_root_mtime_ns: int = -1
+    sync_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
+    sync_in_flight: bool = False
+    pending_sync_task: asyncio.Task[None] | None = None
 
 
 def _safe_stat_mtime_ns(path: Path | str) -> int:
@@ -508,18 +511,27 @@ class QuadGateDaemon:
         prev_cached = getattr(indexer, "_cached_result", None)
         gists = indexer.index_workspace(incremental=True)
         curr_cached = getattr(indexer, "_cached_result", None)
-        if gists and (prev_cached is None or curr_cached is not prev_cached):
-            self._fts_store.upsert_gists(gists)
+        if prev_cached is None:
+            if gists:
+                self._fts_store.upsert_gists(gists)
+        elif curr_cached is not prev_cached:
+            removed_paths = getattr(indexer, "last_removed_paths", None)
+            if removed_paths:
+                self._fts_store.delete_gists(indexer.workspace_hash, removed_paths)
+            changed_gists = getattr(indexer, "last_changed_gists", None)
+            if changed_gists is None:
+                if gists:
+                    self._fts_store.upsert_gists(gists)
+            elif changed_gists:
+                self._fts_store.upsert_gists(changed_gists)
         if cochange is not None:
             cochange.build_from_git_log()
 
     @staticmethod
-    def _needs_workspace_resync(ctx: _WorkspaceContext, now_mono: float) -> bool:
-        if (now_mono - ctx.last_synced_monotonic) >= 0.5:
-            return True
+    def _classify_resync_need(ctx: _WorkspaceContext, now_mono: float) -> str | None:
         cur_root_mtime = _safe_stat_mtime_ns(ctx.workspace_root)
         if cur_root_mtime == -1 or cur_root_mtime != ctx.last_root_mtime_ns:
-            return True
+            return "dirty"
         dir_mtimes: dict[str, int] | None = getattr(ctx.indexer, "_dir_mtimes", None)
         if isinstance(dir_mtimes, dict) and 0 < len(dir_mtimes) <= 8:
             ws_root_str = str(ctx.workspace_root)
@@ -528,8 +540,30 @@ class QuadGateDaemon:
                     continue
                 sub_path = os.path.join(ws_root_str, rel_dir)
                 if _safe_stat_mtime_ns(sub_path) != prev_mtime:
-                    return True
-        return False
+                    return "dirty"
+        if (now_mono - ctx.last_synced_monotonic) >= 30.0:
+            return "periodic"
+        return None
+
+    @staticmethod
+    def _needs_workspace_resync(ctx: _WorkspaceContext, now_mono: float) -> bool:
+        return QuadGateDaemon._classify_resync_need(ctx, now_mono) is not None
+
+    async def _run_periodic_workspace_sync(self, ctx: _WorkspaceContext) -> None:
+        if ctx.sync_in_flight:
+            return
+        async with ctx.sync_lock:
+            if not self._running or self._classify_resync_need(ctx, time.monotonic()) is None:
+                return
+            ctx.sync_in_flight = True
+            try:
+                await asyncio.to_thread(self._sync_workspace_index, ctx.indexer, None)
+                ctx.last_synced_monotonic = time.monotonic()
+                ctx.last_root_mtime_ns = _safe_stat_mtime_ns(ctx.workspace_root)
+            except Exception:
+                pass
+            finally:
+                ctx.sync_in_flight = False
 
     async def _get_or_create_workspace(
         self,
@@ -542,10 +576,31 @@ class QuadGateDaemon:
         if ctx is not None:
             now_mono = time.monotonic()
             ctx.last_used_monotonic = now_mono
-            if reindex_if_intake_turn1 and self._needs_workspace_resync(ctx, now_mono):
-                await asyncio.to_thread(self._sync_workspace_index, ctx.indexer, None)
-                ctx.last_synced_monotonic = time.monotonic()
-                ctx.last_root_mtime_ns = _safe_stat_mtime_ns(ctx.workspace_root)
+            if reindex_if_intake_turn1:
+                resync_kind = self._classify_resync_need(ctx, now_mono)
+                if resync_kind is None:
+                    return ctx
+                if resync_kind == "dirty":
+                    async with ctx.sync_lock:
+                        if self._classify_resync_need(ctx, time.monotonic()) is not None:
+                            ctx.sync_in_flight = True
+                            try:
+                                await asyncio.to_thread(
+                                    self._sync_workspace_index, ctx.indexer, None
+                                )
+                                ctx.last_synced_monotonic = time.monotonic()
+                                ctx.last_root_mtime_ns = _safe_stat_mtime_ns(
+                                    ctx.workspace_root
+                                )
+                            finally:
+                                ctx.sync_in_flight = False
+                elif resync_kind == "periodic":
+                    if not ctx.sync_in_flight and (
+                        ctx.pending_sync_task is None or ctx.pending_sync_task.done()
+                    ):
+                        ctx.pending_sync_task = asyncio.create_task(
+                            self._run_periodic_workspace_sync(ctx)
+                        )
             return ctx
 
         async with self._get_workspace_lock():
@@ -763,6 +818,16 @@ class QuadGateDaemon:
                 await runner.cleanup()
 
             for ctx in list(self._workspaces.values()):
+                pending_task = ctx.pending_sync_task
+                ctx.pending_sync_task = None
+                if (
+                    pending_task is not None
+                    and pending_task is not current
+                    and not pending_task.done()
+                ):
+                    pending_task.cancel()
+                    with contextlib.suppress(asyncio.CancelledError, Exception):
+                        await pending_task
                 with contextlib.suppress(Exception):
                     ctx.healing.close()
             self._workspaces.clear()

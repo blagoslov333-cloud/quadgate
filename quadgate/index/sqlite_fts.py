@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 import json
 import math
 import re
@@ -799,21 +800,36 @@ class SqliteFtsStore:
             for gist in gists:
                 deduped[(gist.workspace_hash, gist.rel_path)] = gist
 
-            workspaces = {key[0] for key in deduped}
+            paths_by_ws: dict[str, list[str]] = {}
+            for ws_hash, rel_path in deduped:
+                paths_by_ws.setdefault(ws_hash, []).append(rel_path)
+
             existing_by_key: dict[
                 tuple[str, str],
                 tuple[int, str, str, str, str, str, int, int, int],
             ] = {}
-            for ws_hash in workspaces:
-                rows = conn.execute(
-                    """
-                    SELECT rel_path, id, content_hash, language, semantic_gist,
-                           symbols_json, imports_json, fan_in_count, mtime_ns, is_private_tier1
-                    FROM gists
-                    WHERE workspace_hash = ?
-                    """,
-                    (ws_hash,),
-                ).fetchall()
+            for ws_hash, ws_paths in paths_by_ws.items():
+                if len(ws_paths) <= 64:
+                    placeholders = ",".join("?" for _ in ws_paths)
+                    rows = conn.execute(
+                        f"""
+                        SELECT rel_path, id, content_hash, language, semantic_gist,
+                               symbols_json, imports_json, fan_in_count, mtime_ns, is_private_tier1
+                        FROM gists
+                        WHERE workspace_hash = ? AND rel_path IN ({placeholders})
+                        """,
+                        (ws_hash, *ws_paths),
+                    ).fetchall()
+                else:
+                    rows = conn.execute(
+                        """
+                        SELECT rel_path, id, content_hash, language, semantic_gist,
+                               symbols_json, imports_json, fan_in_count, mtime_ns, is_private_tier1
+                        FROM gists
+                        WHERE workspace_hash = ?
+                        """,
+                        (ws_hash,),
+                    ).fetchall()
                 for r in rows:
                     existing_by_key[(ws_hash, str(r[0]))] = (
                         int(r[1]),
@@ -965,9 +981,50 @@ class SqliteFtsStore:
 
                     written += 1
 
-            for ws_hash in workspaces:
+            for ws_hash in paths_by_ws:
                 self._ws_counts.pop(ws_hash, None)
             return written
+
+    def delete_gists(self, workspace_hash: str, rel_paths: Sequence[str]) -> int:
+        """Delete removed file gists for a workspace from gists, gists_fts, and gists_trigram."""
+        unique_paths = list(dict.fromkeys(p for p in rel_paths if p))
+        if not workspace_hash or not unique_paths:
+            return 0
+
+        with self._lock:
+            conn = self._ensure_initialized()
+            row_ids: list[int] = []
+            for idx in range(0, len(unique_paths), 500):
+                chunk = unique_paths[idx : idx + 500]
+                placeholders = ",".join("?" for _ in chunk)
+                rows = conn.execute(
+                    f"SELECT id FROM gists WHERE workspace_hash = ? AND rel_path IN ({placeholders})",
+                    (workspace_hash, *chunk),
+                ).fetchall()
+                row_ids.extend(int(r[0]) for r in rows)
+
+            if not row_ids:
+                return 0
+
+            with conn:
+                for idx in range(0, len(row_ids), 500):
+                    id_chunk = row_ids[idx : idx + 500]
+                    placeholders = ",".join("?" for _ in id_chunk)
+                    conn.execute(
+                        f"DELETE FROM gists_fts WHERE rowid IN ({placeholders})",
+                        tuple(id_chunk),
+                    )
+                    conn.execute(
+                        f"DELETE FROM gists_trigram WHERE rowid IN ({placeholders})",
+                        tuple(id_chunk),
+                    )
+                    conn.execute(
+                        f"DELETE FROM gists WHERE id IN ({placeholders})",
+                        tuple(id_chunk),
+                    )
+
+            self._ws_counts.pop(workspace_hash, None)
+            return len(row_ids)
 
     def check_air_gap(self, text: str, workspace_root: str = "") -> bool:
         """Return False if Tier-1 paths, PII/HIPAA/PHI, or secrets prohibit cloud egress."""

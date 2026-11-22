@@ -38,6 +38,29 @@ _EXCLUDED_DIRS: frozenset[str] = frozenset(
         ".eggs",
         ".hg",
         ".svn",
+        ".next",
+        ".nuxt",
+        ".svelte-kit",
+        ".cache",
+        ".turbo",
+        ".vercel",
+        ".parcel-cache",
+        "out",
+        "coverage",
+        "vendor",
+        ".cargo",
+        ".gradle",
+        "Pods",
+        "DerivedData",
+        "bin",
+        "obj",
+        "site-packages",
+        "env",
+        "tmp",
+        ".idea",
+        ".vscode",
+        "playwright-report",
+        "storybook-static",
     }
 )
 
@@ -378,9 +401,9 @@ def _normalize_md_link(raw_target: str) -> str | None:
     return target or None
 
 
-def _read_bytes(path: str) -> bytes:
+def _read_bytes(path: str, max_bytes: int = 524_288) -> bytes:
     with open(path, "rb") as fh:
-        return fh.read()
+        return fh.read(max_bytes)
 
 
 # ---------------------------------------------------------------------------
@@ -1044,6 +1067,9 @@ def _fallback_extract_markdown(
 # ---------------------------------------------------------------------------
 
 
+_SIMPLE_INCLUDE_GLOB_RE = re.compile(r"^\*\*/\*(\.[A-Za-z0-9_]+)$")
+
+
 class AstGistIndexer:
     """Extracts structural AST gists and import fan-in blast radius at $0 LLM cost."""
 
@@ -1057,17 +1083,30 @@ class AstGistIndexer:
         self.workspace_root = Path(workspace_root)
         self.cartridge = cartridge
         self.use_tree_sitter = use_tree_sitter
+        self._index_lock = threading.RLock()
         self._workspace_real = os.path.realpath(str(self.workspace_root))
         self._workspace_real_norm = os.path.normcase(self._workspace_real)
         self.workspace_hash = hashlib.blake2b(
             self._workspace_real_norm.encode("utf-8"), digest_size=16
         ).hexdigest()
 
+        self._simple_include_exts: frozenset[str] | None = None
         if cartridge is not None:
             cu = cartridge.context_unit
             self._include_res = [_glob_to_regex(g) for g in cu.include_globs]
             self._exclude_res = [_glob_to_regex(g) for g in cu.exclude_globs]
             self._private_res = [(g, _glob_to_regex(g)) for g in cu.private_tier1_globs]
+            if cu.include_globs:
+                simple_exts: list[str] = []
+                for g in cu.include_globs:
+                    norm_g = g.replace("\\", "/").lstrip("./")
+                    m = _SIMPLE_INCLUDE_GLOB_RE.match(norm_g)
+                    if m is None:
+                        simple_exts = []
+                        break
+                    simple_exts.append(m.group(1).lower())
+                if simple_exts:
+                    self._simple_include_exts = frozenset(simple_exts)
         else:
             self._include_res = []
             self._exclude_res = []
@@ -1081,6 +1120,8 @@ class AstGistIndexer:
         self._reverse_edges: dict[str, set[str]] = {}
         self._cached_result: list[IndexedGist] | None = None
         self._go_module_name: str | None = None
+        self.last_changed_gists: list[IndexedGist] = []
+        self.last_removed_paths: list[str] = []
 
     @staticmethod
     def _detect_language(rel_path: str) -> str:
@@ -1135,41 +1176,59 @@ class AstGistIndexer:
 
     def has_private_files(self) -> bool:
         """Return True if any file in this workspace triggers Tier-1 privacy rules."""
-        if any(gist.is_private_tier1 for gist in self._gists_by_path.values()):
-            return True
-        if not self.workspace_root.exists():
+        with self._index_lock:
+            if any(gist.is_private_tier1 for gist in self._gists_by_path.values()):
+                return True
+            if not self.workspace_root.exists():
+                return False
+            excluded_dirs = _EXCLUDED_DIRS
+            has_exclude_res = bool(self._exclude_res)
+            indexed = self._gists_by_path
+            isjunction = getattr(os.path, "isjunction", None)
+            visited_dirs: set[str] = {self._workspace_real_norm}
+            stack: list[tuple[str, str]] = [(self._workspace_real, "")]
+            while stack:
+                abs_dir, rel_dir = stack.pop()
+                prefix = f"{rel_dir}/" if rel_dir else ""
+                try:
+                    with os.scandir(abs_dir) as it:
+                        for entry in it:
+                            name = entry.name
+                            try:
+                                if entry.is_symlink():
+                                    continue
+                            except OSError:
+                                continue
+                            if entry.is_file(follow_symlinks=False):
+                                rel_path = prefix + name
+                                if has_exclude_res and self._is_excluded_path(rel_path, is_dir=False):
+                                    continue
+                                if rel_path in indexed:
+                                    continue
+                                if self._is_private_tier1(rel_path):
+                                    return True
+                                if is_sensitive_file(entry.path, self._workspace_real):
+                                    return True
+                            elif entry.is_dir(follow_symlinks=False):
+                                if name in excluded_dirs:
+                                    continue
+                                sub_rel = prefix + name
+                                if has_exclude_res and self._is_excluded_path(sub_rel, is_dir=True):
+                                    continue
+                                if isjunction is not None:
+                                    try:
+                                        if isjunction(entry.path):
+                                            continue
+                                    except OSError:
+                                        continue
+                                sub_real_norm = os.path.normcase(os.path.realpath(entry.path))
+                                if sub_real_norm in visited_dirs:
+                                    continue
+                                visited_dirs.add(sub_real_norm)
+                                stack.append((entry.path, sub_rel))
+                except OSError:
+                    continue
             return False
-        excluded_dirs = _EXCLUDED_DIRS
-        has_exclude_res = bool(self._exclude_res)
-        indexed = self._gists_by_path
-        stack: list[tuple[str, str]] = [(self._workspace_real, "")]
-        while stack:
-            abs_dir, rel_dir = stack.pop()
-            prefix = f"{rel_dir}/" if rel_dir else ""
-            try:
-                with os.scandir(abs_dir) as it:
-                    for entry in it:
-                        name = entry.name
-                        if entry.is_file(follow_symlinks=False):
-                            rel_path = prefix + name
-                            if has_exclude_res and self._is_excluded_path(rel_path, is_dir=False):
-                                continue
-                            if rel_path in indexed:
-                                continue
-                            if self._is_private_tier1(rel_path):
-                                return True
-                            if is_sensitive_file(entry.path, self._workspace_real):
-                                return True
-                        elif entry.is_dir(follow_symlinks=False):
-                            if name in excluded_dirs:
-                                continue
-                            sub_rel = prefix + name
-                            if has_exclude_res and self._is_excluded_path(sub_rel, is_dir=True):
-                                continue
-                            stack.append((entry.path, sub_rel))
-            except OSError:
-                continue
-        return False
 
     def is_file_sensitive(self, file_path: Path | str) -> bool:
         """Return True if file_path triggers Tier-1 privacy rules by path, glob, or content."""
@@ -1188,14 +1247,23 @@ class AstGistIndexer:
         return any(rx.match(rel_path) for rx in self._exclude_res)
 
     def _is_included_file(self, rel_path: str, filename: str) -> bool:
+        if self._simple_include_exts is not None:
+            dot_idx = filename.rfind(".")
+            if dot_idx == -1 or filename[dot_idx:].lower() not in self._simple_include_exts:
+                return False
+            if self._exclude_res and self._is_excluded_path(rel_path, is_dir=False):
+                return False
+            return True
+        if not self._include_res:
+            dot_idx = filename.rfind(".")
+            if dot_idx == -1 or filename[dot_idx:].lower() not in _SUPPORTED_EXTS:
+                return False
+            if self._exclude_res and self._is_excluded_path(rel_path, is_dir=False):
+                return False
+            return True
         if self._exclude_res and self._is_excluded_path(rel_path, is_dir=False):
             return False
-        if self._include_res:
-            return any(rx.match(rel_path) for rx in self._include_res)
-        dot_idx = filename.rfind(".")
-        if dot_idx == -1:
-            return False
-        return filename[dot_idx:].lower() in _SUPPORTED_EXTS
+        return any(rx.match(rel_path) for rx in self._include_res)
 
     def _extract_content(
         self, rel_path: str, language: str, data: bytes, is_private: bool
@@ -1502,14 +1570,27 @@ class AstGistIndexer:
         return [spec]
 
     @staticmethod
+    def _build_md_stem_map(ws_files: set[str]) -> dict[str, str]:
+        md_map: dict[str, str] = {}
+        for rel in sorted(f for f in ws_files if f.endswith(".md")):
+            stem = posixpath.splitext(posixpath.basename(rel))[0].lower()
+            md_map.setdefault(stem, rel)
+            md_map.setdefault(rel.lower(), rel)
+        return md_map
+
+    @staticmethod
     def _resolve_markdown_link(
-        src_rel: str, spec: str, ws_files: set[str]
+        src_rel: str,
+        spec: str,
+        ws_files: set[str],
+        md_stem_map: dict[str, str] | None = None,
     ) -> list[str]:
         if spec.startswith("[[") and spec.endswith("]]"):
             target_name = spec[2:-2].strip().lower()
-            for rel in sorted(ws_files):
-                if not rel.endswith(".md"):
-                    continue
+            if md_stem_map is not None:
+                hit = md_stem_map.get(target_name)
+                return [hit] if hit is not None else [spec]
+            for rel in sorted(f for f in ws_files if f.endswith(".md")):
                 stem = posixpath.splitext(posixpath.basename(rel))[0].lower()
                 if stem == target_name or rel.lower() == target_name:
                     return [rel]
@@ -1531,6 +1612,7 @@ class AstGistIndexer:
         raw_imports: list[tuple[str, list[str]]],
         ws_files: set[str],
         go_dirs: dict[str, list[str]],
+        md_stem_map: dict[str, str] | None = None,
     ) -> list[str]:
         if not raw_imports:
             return []
@@ -1545,7 +1627,9 @@ class AstGistIndexer:
             elif language == "go":
                 resolved.extend(self._resolve_go_import(src_rel, spec, go_dirs))
             elif language == "markdown":
-                resolved.extend(self._resolve_markdown_link(src_rel, spec, ws_files))
+                resolved.extend(
+                    self._resolve_markdown_link(src_rel, spec, ws_files, md_stem_map)
+                )
             else:
                 resolved.append(spec)
         return _dedup_preserve(resolved)
@@ -1554,13 +1638,14 @@ class AstGistIndexer:
         ws_files = set(self._records.keys())
         go_dirs = self._build_go_dir_index(ws_files)
         self._go_module_name = self._read_go_module_name() if go_dirs else None
+        md_stem_map = self._build_md_stem_map(ws_files)
 
         reverse_edges: dict[str, set[str]] = {rel: set() for rel in ws_files}
         resolved_imports_map: dict[str, list[str]] = {}
 
         for rel, rec in self._records.items():
             resolved = self._resolve_file_imports(
-                rel, rec.language, rec.raw_imports, ws_files, go_dirs
+                rel, rec.language, rec.raw_imports, ws_files, go_dirs, md_stem_map
             )
             resolved_imports_map[rel] = resolved
             for target in resolved:
@@ -1568,8 +1653,10 @@ class AstGistIndexer:
                     reverse_edges[target].add(rel)
 
         ws_hash = self.workspace_hash
+        prev_by_path = self._gists_by_path
         updated_by_path: dict[str, IndexedGist] = {}
         ordered: list[IndexedGist] = []
+        changed: list[IndexedGist] = []
         for rel in sorted(ws_files):
             rec = self._records[rel]
             gist = IndexedGist.model_construct(
@@ -1586,128 +1673,172 @@ class AstGistIndexer:
             )
             updated_by_path[rel] = gist
             ordered.append(gist)
+            prev_gist = prev_by_path.get(rel)
+            if prev_gist is None or prev_gist != gist:
+                changed.append(gist)
 
         self._reverse_edges = reverse_edges
         self._gists_by_path = updated_by_path
         self._cached_result = ordered
+        self.last_changed_gists = changed
         return list(ordered)
 
     def index_workspace(self, incremental: bool = True) -> list[IndexedGist]:
         """Scan workspace files using mtime + content-hash delta skipping."""
-        if not self.workspace_root.exists():
-            self._dir_mtimes.clear()
-            self._file_stats.clear()
-            self._records.clear()
-            self._gists_by_path.clear()
-            self._reverse_edges.clear()
-            self._cached_result = []
-            return []
+        with self._index_lock:
+            if not self.workspace_root.exists():
+                self.last_removed_paths = sorted(self._gists_by_path.keys())
+                self.last_changed_gists = []
+                self._dir_mtimes.clear()
+                self._file_stats.clear()
+                self._records.clear()
+                self._gists_by_path.clear()
+                self._reverse_edges.clear()
+                self._cached_result = []
+                return []
 
-        if not incremental:
-            self._dir_mtimes.clear()
-            self._file_stats.clear()
-            self._records.clear()
-            self._cached_result = None
+            if not incremental:
+                self._dir_mtimes.clear()
+                self._file_stats.clear()
+                self._records.clear()
+                self._gists_by_path.clear()
+                self._reverse_edges.clear()
+                self._cached_result = None
 
-        file_stats = self._file_stats
-        records = self._records
-        excluded_dirs = _EXCLUDED_DIRS
-        has_include_res = bool(self._include_res)
-        has_exclude_res = bool(self._exclude_res)
-        supported_exts = _SUPPORTED_EXTS
+            file_stats = self._file_stats
+            records = self._records
+            excluded_dirs = _EXCLUDED_DIRS
+            has_include_res = bool(self._include_res)
+            has_exclude_res = bool(self._exclude_res)
+            supported_exts = _SUPPORTED_EXTS
+            simple_exts = self._simple_include_exts if has_include_res else supported_exts
+            isjunction = getattr(os.path, "isjunction", None)
 
-        seen_paths: list[str] = []
-        pending_parse: list[tuple[str, str, int]] = []
-        new_dir_mtimes: dict[str, int] = {}
-        any_changed = False
+            seen_paths: list[str] = []
+            pending_parse: list[tuple[str, str, int]] = []
+            new_dir_mtimes: dict[str, int] = {}
+            any_changed = False
 
-        try:
-            new_dir_mtimes[""] = os.stat(self._workspace_real).st_mtime_ns
-        except OSError:
-            pass
-
-        stack: list[tuple[str, str]] = [(self._workspace_real, "")]
-        while stack:
-            abs_dir, rel_dir = stack.pop()
-            prefix = f"{rel_dir}/" if rel_dir else ""
             try:
-                with os.scandir(abs_dir) as it:
-                    for entry in it:
-                        name = entry.name
-                        if entry.is_file(follow_symlinks=False):
-                            if not has_include_res and not has_exclude_res:
-                                dot_idx = name.rfind(".")
-                                if dot_idx == -1 or name[dot_idx:].lower() not in supported_exts:
-                                    continue
-                                rel_path = prefix + name
-                            else:
-                                rel_path = prefix + name
-                                if not self._is_included_file(rel_path, name):
-                                    continue
-
-                            seen_paths.append(rel_path)
-                            try:
-                                st = entry.stat(follow_symlinks=False)
-                            except OSError:
-                                continue
-                            sig = (st.st_mtime_ns, st.st_size)
-                            if (
-                                incremental
-                                and file_stats.get(rel_path) == sig
-                                and rel_path in records
-                            ):
-                                continue
-                            any_changed = True
-                            file_stats[rel_path] = sig
-                            pending_parse.append((entry.path, rel_path, st.st_mtime_ns))
-                        elif entry.is_dir(follow_symlinks=False):
-                            if name in excluded_dirs:
-                                continue
-                            sub_rel = prefix + name
-                            if has_exclude_res and self._is_excluded_path(sub_rel, is_dir=True):
-                                continue
-                            try:
-                                new_dir_mtimes[sub_rel] = entry.stat(
-                                    follow_symlinks=False
-                                ).st_mtime_ns
-                            except OSError:
-                                pass
-                            stack.append((entry.path, sub_rel))
+                new_dir_mtimes[""] = os.stat(self._workspace_real).st_mtime_ns
             except OSError:
-                continue
+                pass
 
-        self._dir_mtimes = new_dir_mtimes
+            visited_dirs: set[str] = {self._workspace_real_norm}
+            stack: list[tuple[str, str]] = [(self._workspace_real, "")]
+            while stack:
+                abs_dir, rel_dir = stack.pop()
+                prefix = f"{rel_dir}/" if rel_dir else ""
+                try:
+                    with os.scandir(abs_dir) as it:
+                        for entry in it:
+                            name = entry.name
+                            try:
+                                if entry.is_symlink():
+                                    continue
+                            except OSError:
+                                continue
+                            if entry.is_file(follow_symlinks=False):
+                                if simple_exts is not None:
+                                    dot_idx = name.rfind(".")
+                                    if dot_idx == -1 or name[dot_idx:].lower() not in simple_exts:
+                                        continue
+                                    rel_path = prefix + name
+                                    if has_exclude_res and self._is_excluded_path(
+                                        rel_path, is_dir=False
+                                    ):
+                                        continue
+                                else:
+                                    rel_path = prefix + name
+                                    if not self._is_included_file(rel_path, name):
+                                        continue
 
-        if not any_changed and len(seen_paths) == len(records) and self._cached_result is not None:
-            return list(self._cached_result)
+                                seen_paths.append(rel_path)
+                                try:
+                                    st = entry.stat(follow_symlinks=False)
+                                except OSError:
+                                    continue
+                                sig = (st.st_mtime_ns, st.st_size)
+                                if (
+                                    incremental
+                                    and file_stats.get(rel_path) == sig
+                                    and rel_path in records
+                                ):
+                                    continue
+                                any_changed = True
+                                file_stats[rel_path] = sig
+                                pending_parse.append((entry.path, rel_path, st.st_mtime_ns))
+                            elif entry.is_dir(follow_symlinks=False):
+                                if name in excluded_dirs:
+                                    continue
+                                sub_rel = prefix + name
+                                if has_exclude_res and self._is_excluded_path(
+                                    sub_rel, is_dir=True
+                                ):
+                                    continue
+                                if isjunction is not None:
+                                    try:
+                                        if isjunction(entry.path):
+                                            continue
+                                    except OSError:
+                                        continue
+                                sub_real_norm = os.path.normcase(os.path.realpath(entry.path))
+                                if sub_real_norm in visited_dirs:
+                                    continue
+                                visited_dirs.add(sub_real_norm)
+                                try:
+                                    new_dir_mtimes[sub_rel] = entry.stat(
+                                        follow_symlinks=False
+                                    ).st_mtime_ns
+                                except OSError:
+                                    pass
+                                stack.append((entry.path, sub_rel))
+                except OSError:
+                    continue
 
-        if any_changed or len(seen_paths) != len(records):
-            seen_set = set(seen_paths)
-            for rel_path in list(records.keys()):
-                if rel_path not in seen_set:
-                    records.pop(rel_path, None)
-                    file_stats.pop(rel_path, None)
+            self._dir_mtimes = new_dir_mtimes
 
-        if len(pending_parse) >= 32:
-            if self.use_tree_sitter:
-                seen_langs = {self._detect_language(item[1]) for item in pending_parse}
-                for lang in seen_langs:
-                    if lang not in {"dotenv", "text"}:
-                        _get_ts_parser(lang)
-            workers = min(8, (os.cpu_count() or 4) * 2, len(pending_parse))
+            if (
+                not any_changed
+                and len(seen_paths) == len(records)
+                and self._cached_result is not None
+            ):
+                self.last_changed_gists = []
+                self.last_removed_paths = []
+                return list(self._cached_result)
 
-            def _read_and_parse(item: tuple[str, str, int]) -> tuple[str, _ParsedRecord]:
-                abs_path, rel_path, mtime_ns = item
-                return rel_path, self._parse_data(rel_path, _read_bytes(abs_path), mtime_ns)
+            removed_paths: list[str] = []
+            if any_changed or len(seen_paths) != len(records):
+                seen_set = set(seen_paths)
+                for rel_path in list(records.keys()):
+                    if rel_path not in seen_set:
+                        records.pop(rel_path, None)
+                        file_stats.pop(rel_path, None)
+                        removed_paths.append(rel_path)
+            self.last_removed_paths = removed_paths
 
-            with ThreadPoolExecutor(max_workers=workers) as executor:
-                for rel_path, rec in executor.map(_read_and_parse, pending_parse):
-                    records[rel_path] = rec
-        else:
-            for abs_path, rel_path, mtime_ns in pending_parse:
-                records[rel_path] = self._parse_data(rel_path, _read_bytes(abs_path), mtime_ns)
+            if len(pending_parse) >= 32:
+                if self.use_tree_sitter:
+                    seen_langs = {self._detect_language(item[1]) for item in pending_parse}
+                    for lang in seen_langs:
+                        if lang not in {"dotenv", "text"}:
+                            _get_ts_parser(lang)
+                workers = min(8, (os.cpu_count() or 4) * 2, len(pending_parse))
 
-        return self._recompute_graph()
+                def _read_and_parse(item: tuple[str, str, int]) -> tuple[str, _ParsedRecord]:
+                    abs_path, rel_path, mtime_ns = item
+                    return rel_path, self._parse_data(rel_path, _read_bytes(abs_path), mtime_ns)
+
+                with ThreadPoolExecutor(max_workers=workers) as executor:
+                    for rel_path, rec in executor.map(_read_and_parse, pending_parse):
+                        records[rel_path] = rec
+            else:
+                for abs_path, rel_path, mtime_ns in pending_parse:
+                    records[rel_path] = self._parse_data(
+                        rel_path, _read_bytes(abs_path), mtime_ns
+                    )
+
+            return self._recompute_graph()
 
     def _normalize_target_path(self, target: str) -> str:
         norm = target.replace("\\", "/").strip()

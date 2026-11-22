@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import functools
 import inspect
 import math
 import os
@@ -10,6 +11,7 @@ import re
 import tempfile
 import zlib
 from collections import Counter
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
@@ -283,6 +285,7 @@ _CLAUSE_META_WORDS: frozenset[str] = frozenset(
 )
 
 
+@functools.lru_cache(maxsize=16384)
 def _stem_token(token: str) -> str:
     """Apply lightweight deterministic suffix normalization for lexical matching."""
     n = len(token)
@@ -352,10 +355,18 @@ def _is_recognized_file_ref(raw_path: str) -> bool:
     return raw_path.rsplit(".", 1)[-1].lower() in _KNOWN_FILE_EXTS
 
 
-def _extract_lexical_features(
+@functools.lru_cache(maxsize=4096)
+def _extract_lexical_features_cached(
     text: str,
-) -> tuple[list[str], set[str], set[str], set[str], set[str], set[str]]:
-    """Extract normalized tokens, identifiers, file paths, basenames, stems, and wikilinks."""
+) -> tuple[
+    tuple[str, ...],
+    frozenset[str],
+    frozenset[str],
+    frozenset[str],
+    frozenset[str],
+    frozenset[str],
+]:
+    """Extract normalized tokens, identifiers, file paths, basenames, stems, and wikilinks (cached immutable)."""
     stemmed_tokens: list[str] = []
     identifiers: set[str] = set()
     paths: set[str] = set()
@@ -416,8 +427,11 @@ def _extract_lexical_features(
         for snake_part in chunk.split("_"):
             if not snake_part:
                 continue
-            expanded = _CAMEL_BOUNDARY_2_RE.sub(r"\1 \2", snake_part)
-            expanded = _CAMEL_BOUNDARY_1_RE.sub(r"\1 \2", expanded)
+            if not snake_part.islower() and not snake_part.isupper():
+                expanded = _CAMEL_BOUNDARY_2_RE.sub(r"\1 \2", snake_part)
+                expanded = _CAMEL_BOUNDARY_1_RE.sub(r"\1 \2", expanded)
+            else:
+                expanded = snake_part
             for sub in expanded.split():
                 low = sub.lower()
                 if not low or low in _STOPWORDS:
@@ -431,7 +445,43 @@ def _extract_lexical_features(
                 if len(low) >= 3 or low.isdigit():
                     identifiers.add(low)
 
-    return stemmed_tokens, identifiers, paths, basenames, stems, wikilinks
+    return (
+        tuple(stemmed_tokens),
+        frozenset(identifiers),
+        frozenset(paths),
+        frozenset(basenames),
+        frozenset(stems),
+        frozenset(wikilinks),
+    )
+
+
+def _extract_lexical_features(
+    text: str,
+) -> tuple[list[str], set[str], set[str], set[str], set[str], set[str]]:
+    """Extract normalized tokens, identifiers, file paths, basenames, stems, and wikilinks."""
+    if len(text) <= 4096:
+        stemmed_tokens, identifiers, paths, basenames, stems, wikilinks = (
+            _extract_lexical_features_cached(text)
+        )
+        return (
+            list(stemmed_tokens),
+            set(identifiers),
+            set(paths),
+            set(basenames),
+            set(stems),
+            set(wikilinks),
+        )
+    stemmed_tokens_c, id_c, p_c, b_c, s_c, w_c = (
+        _extract_lexical_features_cached.__wrapped__(text)
+    )
+    return (
+        list(stemmed_tokens_c),
+        set(id_c),
+        set(p_c),
+        set(b_c),
+        set(s_c),
+        set(w_c),
+    )
 
 
 def _extract_tokens_and_identifiers(text: str) -> tuple[list[str], set[str], set[str]]:
@@ -668,8 +718,8 @@ class ZeroDepDriver(ClassifierDriver):
             scores_are_logits=False,
         )
 
-    async def score_raw(self, request: ClassifierRequest) -> dict[str, float]:
-        """Score heads deterministically in [0.0, 1.0] with zero external I/O."""
+    def _score_raw_sync(self, request: ClassifierRequest) -> dict[str, float]:
+        """Score heads deterministically in [0.0, 1.0] with zero external I/O (synchronous)."""
         if len(request.heads) > self.capabilities.max_candidates_per_pass:
             raise ValueError(
                 f"Driver {self.driver_id!r} accepts at most "
@@ -692,11 +742,16 @@ class ZeroDepDriver(ClassifierDriver):
             if len(results) == len(request.heads):
                 return results
 
-        q_tokens, q_idents, q_paths, q_bases, q_stems, q_wikis = _extract_lexical_features(
-            request.query_text
-        )
+        if len(request.query_text) <= 4096:
+            q_tokens, q_idents, q_paths, q_bases, q_stems, q_wikis = (
+                _extract_lexical_features_cached(request.query_text)
+            )
+        else:
+            q_tokens, q_idents, q_paths, q_bases, q_stems, q_wikis = (
+                _extract_lexical_features(request.query_text)
+            )
         if any(r.startswith("tier_") for r in roles):
-            tier_priors = _score_tier_priors(request.query_text, q_paths)
+            tier_priors = _score_tier_priors(request.query_text, set(q_paths))
             for head, role in zip(request.heads, roles, strict=True):
                 if role in tier_priors:
                     results[head.head_id] = float(tier_priors[role])
@@ -714,9 +769,10 @@ class ZeroDepDriver(ClassifierDriver):
                 str | None,
                 str | None,
                 str | None,
-                list[str],
-                set[str],
-                set[str],
+                Sequence[str],
+                frozenset[str] | set[str],
+                frozenset[str] | set[str],
+                frozenset[str] | set[str],
             ]
         ] = []
         df: Counter[str] = Counter()
@@ -730,30 +786,41 @@ class ZeroDepDriver(ClassifierDriver):
             own_path, own_base, own_stem = _extract_candidate_identity(head)
             if " — " in head.candidate_text:
                 header_part, body_part = head.candidate_text.split(" — ", 1)
-                h_tokens, h_idents, _, _, _, _ = _extract_lexical_features(header_part)
-                b_tokens, b_idents, _, _, _, _ = _extract_lexical_features(body_part)
-                c_tokens = h_tokens + b_tokens
-                c_idents = h_idents | b_idents
-                h_tok_set = set(h_tokens)
+                if len(header_part) <= 4096:
+                    h_tokens, h_idents, _, _, _, _ = _extract_lexical_features_cached(header_part)
+                else:
+                    h_tokens, h_idents, _, _, _, _ = _extract_lexical_features(header_part)
+                if len(body_part) <= 4096:
+                    b_tokens, b_idents, _, _, _, _ = _extract_lexical_features_cached(body_part)
+                else:
+                    b_tokens, b_idents, _, _, _, _ = _extract_lexical_features(body_part)
+                c_tokens = tuple(h_tokens) + tuple(b_tokens)
+                c_idents = frozenset(h_idents) | frozenset(b_idents)
+                h_tok_set = frozenset(h_tokens)
+                c_tok_set = frozenset(c_tokens)
             else:
-                c_tokens, c_idents, _, _, _, _ = _extract_lexical_features(head.candidate_text)
-                h_tok_set = set(c_tokens)
+                if len(head.candidate_text) <= 4096:
+                    c_tokens, c_idents, _, _, _, _ = _extract_lexical_features_cached(head.candidate_text)
+                else:
+                    c_tokens, c_idents, _, _, _, _ = _extract_lexical_features(head.candidate_text)
+                c_tok_set = frozenset(c_tokens)
+                h_tok_set = c_tok_set
 
             parsed_heads.append(
-                (head, role, own_path, own_base, own_stem, c_tokens, c_idents, h_tok_set)
+                (head, role, own_path, own_base, own_stem, c_tokens, c_idents, h_tok_set, c_tok_set)
             )
             if role == "candidate":
                 n_cand_docs += 1
                 total_dl += len(c_tokens)
-                for tok in set(c_tokens):
+                for tok in c_tok_set:
                     df[tok] += 1
                 for ident in c_idents:
                     df_ident[ident] += 1
 
         if n_cand_docs == 0:
-            for head, _, _, _, _, c_tokens, c_idents, _ in parsed_heads:
+            for head, _, _, _, _, c_tokens, c_idents, _, c_tok_set in parsed_heads:
                 total_dl += len(c_tokens)
-                for tok in set(c_tokens):
+                for tok in c_tok_set:
                     df[tok] += 1
                 for ident in c_idents:
                     df_ident[ident] += 1
@@ -790,7 +857,7 @@ class ZeroDepDriver(ClassifierDriver):
         k1 = 1.2
         b = 0.55
 
-        for head, role, own_path, own_base, own_stem, c_tokens, c_idents, h_tok_set in parsed_heads:
+        for head, role, own_path, own_base, own_stem, c_tokens, c_idents, h_tok_set, c_tok_set in parsed_heads:
             c_counts = Counter(c_tokens)
             dl = len(c_tokens)
             dl_norm = 1.0 - b + b * (dl / avg_dl)
@@ -855,7 +922,11 @@ class ZeroDepDriver(ClassifierDriver):
                 ):
                     path_boost = 0.38
                 elif own_stem:
-                    own_stem_toks, *_ = _extract_lexical_features(own_stem.replace("_", " "))
+                    stem_text = own_stem.replace("_", " ")
+                    if len(stem_text) <= 4096:
+                        own_stem_toks, *_ = _extract_lexical_features_cached(stem_text)
+                    else:
+                        own_stem_toks, *_ = _extract_lexical_features(stem_text)
                     max_df_stem = max(2, int(0.5 * n_docs))
                     disc_stem_toks = [
                         t
@@ -912,6 +983,12 @@ class ZeroDepDriver(ClassifierDriver):
             results[head.head_id] = float(min(1.0, max(0.0, score)))
 
         return results
+
+    async def score_raw(self, request: ClassifierRequest) -> dict[str, float]:
+        """Score heads deterministically in [0.0, 1.0] with zero external I/O."""
+        if len(request.heads) > 64:
+            return await asyncio.to_thread(self._score_raw_sync, request)
+        return self._score_raw_sync(request)
 
     async def health_check(self) -> bool:
         return True

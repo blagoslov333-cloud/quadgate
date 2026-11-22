@@ -385,6 +385,7 @@ def test_harness_budget_stop_preserves_existing_receipts(
     existing_rec["receipt_sha256"] = compute_receipt_sha256(existing_rec)
     out_file.write_text(json.dumps(existing_rec) + "\n", encoding="utf-8")
 
+    monkeypatch.setenv("DECISION1_API_KEY", "test-key")
     monkeypatch.setattr(
         "benchmarks.real_suite.harness.load_gsm8k_tasks",
         lambda limit=25: [

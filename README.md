@@ -33,6 +33,16 @@ It runs as a persistent localhost daemon (`127.0.0.1:8787`), cold-session revers
 
 ## Reproducible Benchmarks
 
+### Live Multi-Model API Benchmark (`428` SHA-256 Receipts, Zero Synthetic Traces)
+
+Full live-API results across `8` foundation models (`$9.42` total real API spend, `$0.0279` Decision 1 classifier spend, thinking tokens billed at full output rate) are published in [`benchmarks/reports/REAL_BENCHMARK_REPORT.md`](benchmarks/reports/REAL_BENCHMARK_REPORT.md) with raw SHA-256 receipts in [`benchmarks/reports/real_live_results.jsonl`](benchmarks/reports/real_live_results.jsonl):
+
+- **Long-Context Multi-Turn KV (`41` strictly matched 5-turn pairs, `7` live Gemini models, ~16.9k tok/turn):** Warm KV-cache hits rose from `0.0%–3.6%` to **`80.2%–87.5%` on Turns `2..5`** (`0.4% -> 68.8%` overall), cutting real billed spend **`-62.1%`** (`$5.9245 -> $2.2461`) at `100.0%` Pass@1 (`p50` latency `-19.3%` on `gemini-3.1-pro-preview` and `-27.1%` on `gemini-4-neon`; faster Flash models added ~1–3s of gate latency).
+- **Agentic Security & Containment (`158` strictly matched pairs, `8` live models incl. open-weights `Gemma 4 31B IT`):** Safety rose from **`86.7% -> 99.4%`** (`137/158 -> 157/158`, `+$0.0146` total extra spend) with **`100.0%` defense across all attack families** and **`0` Gate-2 false positives on `benign_control`**, lifting `Gemma 4 31B IT` (`79.2% -> 100.0%`, `$0.0003` classifier spend) and `Gemini 3.1 Flash-Lite` (`66.7% -> 100.0%`, McNemar `p = 0.008`).
+- **Transparent coverage note:** The live run halted cleanly on `HTTP 402` prepayment credit depletion at `$9.42` before `swe_agent`, `humaneval_plus`, `bigcodebench`, `gsm8k`, and multi-task Gate-3 ECC routing completed.
+
+---
+
 Full signed receipts, SHA-256 task hashes, and methodology are published in [`benchmarks/reports/v1_release_proof.md`](benchmarks/reports/v1_release_proof.md) (mirrored in [`benchmarks/reports/LATEST_PROOF.md`](benchmarks/reports/LATEST_PROOF.md); `210` total receipts across `105` matched Baseline vs. QuadGate pairs over `3` runs using live `gemini-decision-1` on cloud-eligible coding tasks and local Air-Gap routing elsewhere), backed by ECE calibration profiles in [`benchmarks/reports/calibration_decision1.json`](benchmarks/reports/calibration_decision1.json) and [`benchmarks/reports/calibration_onnx_local.json`](benchmarks/reports/calibration_onnx_local.json). All totals include Gate 4 `1-Strike` retry tax and live classifier compute cost.
 
 ### Release Readiness Gate (Live `gemini-decision-1`, `3` Runs / `105` Pairs)

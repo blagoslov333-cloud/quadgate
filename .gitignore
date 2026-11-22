@@ -36,3 +36,6 @@ public_repository_launch_visibility_blueprint.md
 human_manual_antigravity_swarm_prompts.md
 starter_configs_cross_harness_kit.md
 quadgate_v2_agnostic_architecture.md
+
+# Raw benchmark dataset downloads/caches
+benchmarks/real_suite/cache/

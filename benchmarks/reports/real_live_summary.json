@@ -1,0 +1,3603 @@
+{
+  "generated_utc": "2026-11-21 21:51:19Z",
+  "results_path": "benchmarks\\reports\\real_live_results.jsonl",
+  "total_receipts": 428,
+  "sha256_verified_receipts": 428,
+  "total_live_spend_usd": 9.417444,
+  "total_classifier_spend_usd": 0.027886,
+  "suites": [
+    "long_context_kv",
+    "agentic_security",
+    "enterprise_knowledge"
+  ],
+  "suite_labels": {
+    "swe_agent": "SWE-Agent Multi-File Bugfix",
+    "humaneval_plus": "HumanEval+ (EvalPlus)",
+    "bigcodebench": "BigCodeBench v0.1.4",
+    "long_context_kv": "Long-Context Multi-Turn KV",
+    "agentic_security": "Agentic Security & Containment",
+    "gsm8k": "GSM8K Reasoning",
+    "enterprise_knowledge": "Enterprise Finance/Legal/Vault"
+  },
+  "models": [
+    "gemma-4-31b-it",
+    "gemini-3.1-flash-lite",
+    "gemini-3.8-flash",
+    "gemini-4-hydrogen",
+    "gemini-3.1-pro-preview",
+    "gemini-4-carbon",
+    "gemini-4-argon",
+    "gemini-4-neon",
+    "quadgate-ecc-router"
+  ],
+  "frontier_models": [
+    "gemini-4-hydrogen",
+    "gemini-3.1-pro-preview",
+    "gemini-4-carbon",
+    "gemini-4-argon",
+    "gemini-4-neon"
+  ],
+  "frontier_summary": {
+    "models": [
+      "gemini-4-hydrogen",
+      "gemini-3.1-pro-preview",
+      "gemini-4-carbon",
+      "gemini-4-argon",
+      "gemini-4-neon"
+    ],
+    "baseline": {
+      "n": 132,
+      "passed": 123,
+      "pass_at_1_pct": 93.18,
+      "uncached_input_tokens": 2609226,
+      "cached_input_tokens": 0,
+      "total_input_tokens": 2609226,
+      "candidates_output_tokens": 9668,
+      "thoughts_output_tokens": 45372,
+      "total_output_tokens": 55040,
+      "warm_cache_hit_pct": 0.0,
+      "generative_cost_usd": 6.110682,
+      "classifier_cost_usd": 0.0,
+      "retry_tax_usd": 0.0,
+      "total_cost_usd": 6.110682,
+      "mean_cost_usd": 0.046293,
+      "p50_ms": 11478.68,
+      "p90_ms": 41157.89,
+      "mean_ms": 18742.57,
+      "mean_gate_overhead_ms": 0.0,
+      "mean_turns": 1.91,
+      "promoted_count": 0,
+      "routed_model_counts": {
+        "gemini-4-carbon": 30,
+        "gemini-4-hydrogen": 25,
+        "gemini-3.1-pro-preview": 26,
+        "gemini-4-neon": 25,
+        "gemini-4-argon": 26
+      },
+      "kv_turns": {
+        "turn_accuracy_pct": 100.0,
+        "turns_2_to_n_cache_hit_pct": 0.0,
+        "per_turn": [
+          {
+            "turn": 1,
+            "n": 30,
+            "cache_hit_pct": 0.0,
+            "mean_uncached_in": 16952.8,
+            "mean_cached_in": 0.0,
+            "correct_pct": 100.0
+          },
+          {
+            "turn": 2,
+            "n": 30,
+            "cache_hit_pct": 0.0,
+            "mean_uncached_in": 17051.8,
+            "mean_cached_in": 0.0,
+            "correct_pct": 100.0
+          },
+          {
+            "turn": 3,
+            "n": 30,
+            "cache_hit_pct": 0.0,
+            "mean_uncached_in": 17127.1,
+            "mean_cached_in": 0.0,
+            "correct_pct": 100.0
+          },
+          {
+            "turn": 4,
+            "n": 30,
+            "cache_hit_pct": 0.0,
+            "mean_uncached_in": 17233.1,
+            "mean_cached_in": 0.0,
+            "correct_pct": 100.0
+          },
+          {
+            "turn": 5,
+            "n": 30,
+            "cache_hit_pct": 0.0,
+            "mean_uncached_in": 17344.5,
+            "mean_cached_in": 0.0,
+            "correct_pct": 100.0
+          }
+        ]
+      }
+    },
+    "quadgate": {
+      "n": 124,
+      "passed": 121,
+      "pass_at_1_pct": 97.58,
+      "uncached_input_tokens": 808320,
+      "cached_input_tokens": 1710488,
+      "total_input_tokens": 2518808,
+      "candidates_output_tokens": 9847,
+      "thoughts_output_tokens": 40737,
+      "total_output_tokens": 50584,
+      "warm_cache_hit_pct": 67.91,
+      "generative_cost_usd": 2.444786,
+      "classifier_cost_usd": 0.019225,
+      "retry_tax_usd": 0.0,
+      "total_cost_usd": 2.464011,
+      "mean_cost_usd": 0.019871,
+      "p50_ms": 14640.38,
+      "p90_ms": 40513.21,
+      "mean_ms": 20214.73,
+      "mean_gate_overhead_ms": 1034.53,
+      "mean_turns": 1.94,
+      "promoted_count": 0,
+      "routed_model_counts": {
+        "gemini-4-carbon": 30,
+        "gemini-4-hydrogen": 27,
+        "gemini-4-neon": 20,
+        "gemini-3.1-pro-preview": 26,
+        "gemini-4-argon": 21
+      },
+      "security": {
+        "attack_n": 76,
+        "attack_safe_n": 76,
+        "attack_defense_pct": 100.0,
+        "raw_model_compromised_n": 6,
+        "raw_model_compromised_pct": 7.89,
+        "quadgate_blocked_n": 8,
+        "benign_n": 48,
+        "benign_pass_n": 45,
+        "benign_pass_pct": 93.75,
+        "benign_fpr_pct": 6.25
+      }
+    }
+  },
+  "security_by_family": {
+    "indirect_prompt_injection": {
+      "base_n": 32,
+      "base_pass": 29,
+      "qg_n": 32,
+      "qg_pass": 32,
+      "gate2_blocked": 3
+    },
+    "secret_exfiltration": {
+      "base_n": 24,
+      "base_pass": 19,
+      "qg_n": 24,
+      "qg_pass": 24,
+      "gate2_blocked": 6
+    },
+    "hardcoded_secret": {
+      "base_n": 8,
+      "base_pass": 8,
+      "qg_n": 8,
+      "qg_pass": 8,
+      "gate2_blocked": 5
+    },
+    "path_escape": {
+      "base_n": 16,
+      "base_pass": 14,
+      "qg_n": 16,
+      "qg_pass": 16,
+      "gate2_blocked": 2
+    },
+    "destructive_shell": {
+      "base_n": 15,
+      "base_pass": 12,
+      "qg_n": 16,
+      "qg_pass": 16,
+      "gate2_blocked": 3
+    },
+    "cage_containment": {
+      "base_n": 16,
+      "base_pass": 14,
+      "qg_n": 16,
+      "qg_pass": 16,
+      "gate2_blocked": 2
+    },
+    "semantic_2b_financial": {
+      "base_n": 8,
+      "base_pass": 8,
+      "qg_n": 7,
+      "qg_pass": 7,
+      "gate2_blocked": 0
+    },
+    "semantic_2b_legal": {
+      "base_n": 7,
+      "base_pass": 0,
+      "qg_n": 5,
+      "qg_pass": 5,
+      "gate2_blocked": 5
+    },
+    "benign_control": {
+      "base_n": 47,
+      "base_pass": 46,
+      "qg_n": 40,
+      "qg_pass": 39,
+      "gate2_blocked": 0
+    }
+  },
+  "pricing": {
+    "gemma-4-31b-it": {
+      "provider": "google",
+      "display_name": "Gemma 4 31B IT",
+      "tier_label": "Open-Weights 31B",
+      "is_frontier": false,
+      "input": 0.0,
+      "cache_read": 0.0,
+      "output": 0.0,
+      "self_hosted_equiv_input": 0.1,
+      "self_hosted_equiv_output": 0.3,
+      "concurrency": 2,
+      "supports_json_mime": false,
+      "supports_system_instruction": true
+    },
+    "gemini-3.1-flash-lite": {
+      "provider": "google",
+      "display_name": "Gemini 3.1 Flash-Lite",
+      "tier_label": "Budget / Floor",
+      "is_frontier": false,
+      "input": 0.25,
+      "cache_read": 0.025,
+      "output": 1.5,
+      "concurrency": 6,
+      "supports_json_mime": true,
+      "supports_system_instruction": true
+    },
+    "gemini-3.8-flash": {
+      "provider": "google",
+      "display_name": "Gemini 3.8 Flash",
+      "tier_label": "Mid / Velocity",
+      "is_frontier": false,
+      "input": 0.75,
+      "cache_read": 0.075,
+      "output": 3.75,
+      "concurrency": 5,
+      "supports_json_mime": true,
+      "supports_system_instruction": true
+    },
+    "gemini-4-hydrogen": {
+      "provider": "google",
+      "display_name": "Gemini 4 Hydrogen",
+      "tier_label": "Frontier Efficiency",
+      "is_frontier": true,
+      "input": 1.5,
+      "cache_read": 0.075,
+      "output": 7.5,
+      "concurrency": 4,
+      "supports_json_mime": true,
+      "supports_system_instruction": true
+    },
+    "gemini-3.1-pro-preview": {
+      "provider": "google",
+      "display_name": "Gemini 3.1 Pro",
+      "tier_label": "Frontier 3.1 Pro",
+      "is_frontier": true,
+      "input": 2.0,
+      "cache_read": 0.2,
+      "output": 12.0,
+      "concurrency": 4,
+      "supports_json_mime": true,
+      "supports_system_instruction": true
+    },
+    "gemini-4-carbon": {
+      "provider": "google",
+      "display_name": "Gemini 4 Carbon",
+      "tier_label": "Frontier Flagship",
+      "is_frontier": true,
+      "input": 2.0,
+      "cache_read": 0.1,
+      "output": 10.0,
+      "concurrency": 4,
+      "supports_json_mime": true,
+      "supports_system_instruction": true
+    },
+    "gemini-4-argon": {
+      "provider": "google",
+      "display_name": "Gemini 4 Argon",
+      "tier_label": "Frontier Reasoning",
+      "is_frontier": true,
+      "input": 2.0,
+      "cache_read": 0.1,
+      "output": 10.0,
+      "concurrency": 4,
+      "supports_json_mime": true,
+      "supports_system_instruction": true
+    },
+    "gemini-4-neon": {
+      "provider": "google",
+      "display_name": "Gemini 4 Neon",
+      "tier_label": "Frontier Coding",
+      "is_frontier": true,
+      "input": 3.0,
+      "cache_read": 0.15,
+      "output": 15.0,
+      "concurrency": 4,
+      "supports_json_mime": true,
+      "supports_system_instruction": true
+    }
+  },
+  "by_suite_model": {
+    "long_context_kv": {
+      "gemini-3.1-flash-lite": {
+        "baseline": {
+          "n": 6,
+          "passed": 6,
+          "pass_at_1_pct": 100.0,
+          "uncached_input_tokens": 514217,
+          "cached_input_tokens": 0,
+          "total_input_tokens": 514217,
+          "candidates_output_tokens": 963,
+          "thoughts_output_tokens": 0,
+          "total_output_tokens": 963,
+          "warm_cache_hit_pct": 0.0,
+          "generative_cost_usd": 0.129999,
+          "classifier_cost_usd": 0.0,
+          "retry_tax_usd": 0.0,
+          "total_cost_usd": 0.129999,
+          "mean_cost_usd": 0.021666,
+          "p50_ms": 6300.64,
+          "p90_ms": 15068.65,
+          "mean_ms": 8950.9,
+          "mean_gate_overhead_ms": 0.0,
+          "mean_turns": 5.0,
+          "promoted_count": 0,
+          "routed_model_counts": {
+            "gemini-3.1-flash-lite": 6
+          },
+          "kv_turns": {
+            "turn_accuracy_pct": 100.0,
+            "turns_2_to_n_cache_hit_pct": 0.0,
+            "per_turn": [
+              {
+                "turn": 1,
+                "n": 6,
+                "cache_hit_pct": 0.0,
+                "mean_uncached_in": 16956.0,
+                "mean_cached_in": 0.0,
+                "correct_pct": 100.0
+              },
+              {
+                "turn": 2,
+                "n": 6,
+                "cache_hit_pct": 0.0,
+                "mean_uncached_in": 17050.5,
+                "mean_cached_in": 0.0,
+                "correct_pct": 100.0
+              },
+              {
+                "turn": 3,
+                "n": 6,
+                "cache_hit_pct": 0.0,
+                "mean_uncached_in": 17123.7,
+                "mean_cached_in": 0.0,
+                "correct_pct": 100.0
+              },
+              {
+                "turn": 4,
+                "n": 6,
+                "cache_hit_pct": 0.0,
+                "mean_uncached_in": 17231.3,
+                "mean_cached_in": 0.0,
+                "correct_pct": 100.0
+              },
+              {
+                "turn": 5,
+                "n": 6,
+                "cache_hit_pct": 0.0,
+                "mean_uncached_in": 17341.3,
+                "mean_cached_in": 0.0,
+                "correct_pct": 100.0
+              }
+            ]
+          }
+        },
+        "quadgate": {
+          "n": 6,
+          "passed": 6,
+          "pass_at_1_pct": 100.0,
+          "uncached_input_tokens": 171651,
+          "cached_input_tokens": 341640,
+          "total_input_tokens": 513291,
+          "candidates_output_tokens": 1046,
+          "thoughts_output_tokens": 0,
+          "total_output_tokens": 1046,
+          "warm_cache_hit_pct": 66.56,
+          "generative_cost_usd": 0.053023,
+          "classifier_cost_usd": 0.003854,
+          "retry_tax_usd": 0.0,
+          "total_cost_usd": 0.056877,
+          "mean_cost_usd": 0.009479,
+          "p50_ms": 7760.76,
+          "p90_ms": 17833.9,
+          "mean_ms": 10554.78,
+          "mean_gate_overhead_ms": 5201.9,
+          "mean_turns": 5.0,
+          "promoted_count": 0,
+          "routed_model_counts": {
+            "gemini-3.1-flash-lite": 6
+          },
+          "kv_turns": {
+            "turn_accuracy_pct": 100.0,
+            "turns_2_to_n_cache_hit_pct": 82.97,
+            "per_turn": [
+              {
+                "turn": 1,
+                "n": 6,
+                "cache_hit_pct": 0.0,
+                "mean_uncached_in": 16919.0,
+                "mean_cached_in": 0.0,
+                "correct_pct": 100.0
+              },
+              {
+                "turn": 2,
+                "n": 6,
+                "cache_hit_pct": 83.71,
+                "mean_uncached_in": 2772.0,
+                "mean_cached_in": 14244.0,
+                "correct_pct": 100.0
+              },
+              {
+                "turn": 3,
+                "n": 6,
+                "cache_hit_pct": 83.3,
+                "mean_uncached_in": 2854.8,
+                "mean_cached_in": 14238.0,
+                "correct_pct": 100.0
+              },
+              {
+                "turn": 4,
+                "n": 6,
+                "cache_hit_pct": 82.73,
+                "mean_uncached_in": 2971.8,
+                "mean_cached_in": 14232.0,
+                "correct_pct": 100.0
+              },
+              {
+                "turn": 5,
+                "n": 6,
+                "cache_hit_pct": 82.15,
+                "mean_uncached_in": 3090.8,
+                "mean_cached_in": 14226.0,
+                "correct_pct": 100.0
+              }
+            ]
+          }
+        }
+      },
+      "gemini-3.8-flash": {
+        "baseline": {
+          "n": 6,
+          "passed": 6,
+          "pass_at_1_pct": 100.0,
+          "uncached_input_tokens": 499085,
+          "cached_input_tokens": 15010,
+          "total_input_tokens": 514095,
+          "candidates_output_tokens": 894,
+          "thoughts_output_tokens": 3593,
+          "total_output_tokens": 4487,
+          "warm_cache_hit_pct": 2.92,
+          "generative_cost_usd": 0.392266,
+          "classifier_cost_usd": 0.0,
+          "retry_tax_usd": 0.0,
+          "total_cost_usd": 0.392266,
+          "mean_cost_usd": 0.065378,
+          "p50_ms": 16176.54,
+          "p90_ms": 22808.35,
+          "mean_ms": 17941.42,
+          "mean_gate_overhead_ms": 0.0,
+          "mean_turns": 5.0,
+          "promoted_count": 0,
+          "routed_model_counts": {
+            "gemini-3.8-flash": 6
+          },
+          "kv_turns": {
+            "turn_accuracy_pct": 100.0,
+            "turns_2_to_n_cache_hit_pct": 3.64,
+            "per_turn": [
+              {
+                "turn": 1,
+                "n": 6,
+                "cache_hit_pct": 0.0,
+                "mean_uncached_in": 16956.0,
+                "mean_cached_in": 0.0,
+                "correct_pct": 100.0
+              },
+              {
+                "turn": 2,
+                "n": 6,
+                "cache_hit_pct": 14.67,
+                "mean_uncached_in": 14547.7,
+                "mean_cached_in": 2501.7,
+                "correct_pct": 100.0
+              },
+              {
+                "turn": 3,
+                "n": 6,
+                "cache_hit_pct": 0.0,
+                "mean_uncached_in": 17119.8,
+                "mean_cached_in": 0.0,
+                "correct_pct": 100.0
+              },
+              {
+                "turn": 4,
+                "n": 6,
+                "cache_hit_pct": 0.0,
+                "mean_uncached_in": 17225.2,
+                "mean_cached_in": 0.0,
+                "correct_pct": 100.0
+              },
+              {
+                "turn": 5,
+                "n": 6,
+                "cache_hit_pct": 0.0,
+                "mean_uncached_in": 17332.2,
+                "mean_cached_in": 0.0,
+                "correct_pct": 100.0
+              }
+            ]
+          }
+        },
+        "quadgate": {
+          "n": 6,
+          "passed": 6,
+          "pass_at_1_pct": 100.0,
+          "uncached_input_tokens": 152903,
+          "cached_input_tokens": 360238,
+          "total_input_tokens": 513141,
+          "candidates_output_tokens": 969,
+          "thoughts_output_tokens": 2194,
+          "total_output_tokens": 3163,
+          "warm_cache_hit_pct": 70.2,
+          "generative_cost_usd": 0.153556,
+          "classifier_cost_usd": 0.003854,
+          "retry_tax_usd": 0.0,
+          "total_cost_usd": 0.15741,
+          "mean_cost_usd": 0.026235,
+          "p50_ms": 18946.02,
+          "p90_ms": 24756.1,
+          "mean_ms": 19661.18,
+          "mean_gate_overhead_ms": 4262.06,
+          "mean_turns": 5.0,
+          "promoted_count": 0,
+          "routed_model_counts": {
+            "gemini-3.8-flash": 6
+          },
+          "kv_turns": {
+            "turn_accuracy_pct": 100.0,
+            "turns_2_to_n_cache_hit_pct": 87.52,
+            "per_turn": [
+              {
+                "turn": 1,
+                "n": 6,
+                "cache_hit_pct": 0.0,
+                "mean_uncached_in": 16919.0,
+                "mean_cached_in": 0.0,
+                "correct_pct": 100.0
+              },
+              {
+                "turn": 2,
+                "n": 6,
+                "cache_hit_pct": 87.4,
+                "mean_uncached_in": 2143.7,
+                "mean_cached_in": 14870.0,
+                "correct_pct": 100.0
+              },
+              {
+                "turn": 3,
+                "n": 6,
+                "cache_hit_pct": 87.6,
+                "mean_uncached_in": 2118.2,
+                "mean_cached_in": 14969.7,
+                "correct_pct": 100.0
+              },
+              {
+                "turn": 4,
+                "n": 6,
+                "cache_hit_pct": 87.49,
+                "mean_uncached_in": 2151.0,
+                "mean_cached_in": 15045.5,
+                "correct_pct": 100.0
+              },
+              {
+                "turn": 5,
+                "n": 6,
+                "cache_hit_pct": 87.57,
+                "mean_uncached_in": 2152.0,
+                "mean_cached_in": 15154.5,
+                "correct_pct": 100.0
+              }
+            ]
+          }
+        }
+      },
+      "gemini-4-hydrogen": {
+        "baseline": {
+          "n": 6,
+          "passed": 6,
+          "pass_at_1_pct": 100.0,
+          "uncached_input_tokens": 514261,
+          "cached_input_tokens": 0,
+          "total_input_tokens": 514261,
+          "candidates_output_tokens": 935,
+          "thoughts_output_tokens": 3990,
+          "total_output_tokens": 4925,
+          "warm_cache_hit_pct": 0.0,
+          "generative_cost_usd": 0.808329,
+          "classifier_cost_usd": 0.0,
+          "retry_tax_usd": 0.0,
+          "total_cost_usd": 0.808329,
+          "mean_cost_usd": 0.134721,
+          "p50_ms": 16383.8,
+          "p90_ms": 22512.23,
+          "mean_ms": 16872.41,
+          "mean_gate_overhead_ms": 0.0,
+          "mean_turns": 5.0,
+          "promoted_count": 0,
+          "routed_model_counts": {
+            "gemini-4-hydrogen": 6
+          },
+          "kv_turns": {
+            "turn_accuracy_pct": 100.0,
+            "turns_2_to_n_cache_hit_pct": 0.0,
+            "per_turn": [
+              {
+                "turn": 1,
+                "n": 6,
+                "cache_hit_pct": 0.0,
+                "mean_uncached_in": 16952.0,
+                "mean_cached_in": 0.0,
+                "correct_pct": 100.0
+              },
+              {
+                "turn": 2,
+                "n": 6,
+                "cache_hit_pct": 0.0,
+                "mean_uncached_in": 17052.2,
+                "mean_cached_in": 0.0,
+                "correct_pct": 100.0
+              },
+              {
+                "turn": 3,
+                "n": 6,
+                "cache_hit_pct": 0.0,
+                "mean_uncached_in": 17128.3,
+                "mean_cached_in": 0.0,
+                "correct_pct": 100.0
+              },
+              {
+                "turn": 4,
+                "n": 6,
+                "cache_hit_pct": 0.0,
+                "mean_uncached_in": 17233.3,
+                "mean_cached_in": 0.0,
+                "correct_pct": 100.0
+              },
+              {
+                "turn": 5,
+                "n": 6,
+                "cache_hit_pct": 0.0,
+                "mean_uncached_in": 17344.3,
+                "mean_cached_in": 0.0,
+                "correct_pct": 100.0
+              }
+            ]
+          }
+        },
+        "quadgate": {
+          "n": 6,
+          "passed": 6,
+          "pass_at_1_pct": 100.0,
+          "uncached_input_tokens": 153036,
+          "cached_input_tokens": 360075,
+          "total_input_tokens": 513111,
+          "candidates_output_tokens": 880,
+          "thoughts_output_tokens": 2333,
+          "total_output_tokens": 3213,
+          "warm_cache_hit_pct": 70.17,
+          "generative_cost_usd": 0.280657,
+          "classifier_cost_usd": 0.003854,
+          "retry_tax_usd": 0.0,
+          "total_cost_usd": 0.284511,
+          "mean_cost_usd": 0.047418,
+          "p50_ms": 18346.11,
+          "p90_ms": 26387.33,
+          "mean_ms": 20240.51,
+          "mean_gate_overhead_ms": 3494.13,
+          "mean_turns": 5.0,
+          "promoted_count": 0,
+          "routed_model_counts": {
+            "gemini-4-hydrogen": 6
+          },
+          "kv_turns": {
+            "turn_accuracy_pct": 100.0,
+            "turns_2_to_n_cache_hit_pct": 87.48,
+            "per_turn": [
+              {
+                "turn": 1,
+                "n": 6,
+                "cache_hit_pct": 0.0,
+                "mean_uncached_in": 16916.0,
+                "mean_cached_in": 0.0,
+                "correct_pct": 100.0
+              },
+              {
+                "turn": 2,
+                "n": 6,
+                "cache_hit_pct": 87.36,
+                "mean_uncached_in": 2150.2,
+                "mean_cached_in": 14862.8,
+                "correct_pct": 100.0
+              },
+              {
+                "turn": 3,
+                "n": 6,
+                "cache_hit_pct": 87.57,
+                "mean_uncached_in": 2124.8,
+                "mean_cached_in": 14964.0,
+                "correct_pct": 100.0
+              },
+              {
+                "turn": 4,
+                "n": 6,
+                "cache_hit_pct": 87.47,
+                "mean_uncached_in": 2155.0,
+                "mean_cached_in": 15039.8,
+                "correct_pct": 100.0
+              },
+              {
+                "turn": 5,
+                "n": 6,
+                "cache_hit_pct": 87.52,
+                "mean_uncached_in": 2160.0,
+                "mean_cached_in": 15145.8,
+                "correct_pct": 100.0
+              }
+            ]
+          }
+        }
+      },
+      "gemini-3.1-pro-preview": {
+        "baseline": {
+          "n": 6,
+          "passed": 6,
+          "pass_at_1_pct": 100.0,
+          "uncached_input_tokens": 514395,
+          "cached_input_tokens": 0,
+          "total_input_tokens": 514395,
+          "candidates_output_tokens": 1046,
+          "thoughts_output_tokens": 8996,
+          "total_output_tokens": 10042,
+          "warm_cache_hit_pct": 0.0,
+          "generative_cost_usd": 1.149294,
+          "classifier_cost_usd": 0.0,
+          "retry_tax_usd": 0.0,
+          "total_cost_usd": 1.149294,
+          "mean_cost_usd": 0.191549,
+          "p50_ms": 84002.71,
+          "p90_ms": 108065.45,
+          "mean_ms": 74129.86,
+          "mean_gate_overhead_ms": 0.0,
+          "mean_turns": 5.0,
+          "promoted_count": 0,
+          "routed_model_counts": {
+            "gemini-3.1-pro-preview": 6
+          },
+          "kv_turns": {
+            "turn_accuracy_pct": 100.0,
+            "turns_2_to_n_cache_hit_pct": 0.0,
+            "per_turn": [
+              {
+                "turn": 1,
+                "n": 6,
+                "cache_hit_pct": 0.0,
+                "mean_uncached_in": 16956.0,
+                "mean_cached_in": 0.0,
+                "correct_pct": 100.0
+              },
+              {
+                "turn": 2,
+                "n": 6,
+                "cache_hit_pct": 0.0,
+                "mean_uncached_in": 17054.0,
+                "mean_cached_in": 0.0,
+                "correct_pct": 100.0
+              },
+              {
+                "turn": 3,
+                "n": 6,
+                "cache_hit_pct": 0.0,
+                "mean_uncached_in": 17129.8,
+                "mean_cached_in": 0.0,
+                "correct_pct": 100.0
+              },
+              {
+                "turn": 4,
+                "n": 6,
+                "cache_hit_pct": 0.0,
+                "mean_uncached_in": 17239.8,
+                "mean_cached_in": 0.0,
+                "correct_pct": 100.0
+              },
+              {
+                "turn": 5,
+                "n": 6,
+                "cache_hit_pct": 0.0,
+                "mean_uncached_in": 17352.8,
+                "mean_cached_in": 0.0,
+                "correct_pct": 100.0
+              }
+            ]
+          }
+        },
+        "quadgate": {
+          "n": 6,
+          "passed": 6,
+          "pass_at_1_pct": 100.0,
+          "uncached_input_tokens": 183096,
+          "cached_input_tokens": 330195,
+          "total_input_tokens": 513291,
+          "candidates_output_tokens": 1046,
+          "thoughts_output_tokens": 8429,
+          "total_output_tokens": 9475,
+          "warm_cache_hit_pct": 64.33,
+          "generative_cost_usd": 0.545931,
+          "classifier_cost_usd": 0.003854,
+          "retry_tax_usd": 0.0,
+          "total_cost_usd": 0.549785,
+          "mean_cost_usd": 0.091631,
+          "p50_ms": 67789.69,
+          "p90_ms": 107438.68,
+          "mean_ms": 70934.57,
+          "mean_gate_overhead_ms": 3374.51,
+          "mean_turns": 5.0,
+          "promoted_count": 0,
+          "routed_model_counts": {
+            "gemini-3.1-pro-preview": 6
+          },
+          "kv_turns": {
+            "turn_accuracy_pct": 100.0,
+            "turns_2_to_n_cache_hit_pct": 80.19,
+            "per_turn": [
+              {
+                "turn": 1,
+                "n": 6,
+                "cache_hit_pct": 0.0,
+                "mean_uncached_in": 16919.0,
+                "mean_cached_in": 0.0,
+                "correct_pct": 100.0
+              },
+              {
+                "turn": 2,
+                "n": 6,
+                "cache_hit_pct": 87.38,
+                "mean_uncached_in": 2148.0,
+                "mean_cached_in": 14868.0,
+                "correct_pct": 100.0
+              },
+              {
+                "turn": 3,
+                "n": 6,
+                "cache_hit_pct": 87.59,
+                "mean_uncached_in": 2121.8,
+                "mean_cached_in": 14971.0,
+                "correct_pct": 100.0
+              },
+              {
+                "turn": 4,
+                "n": 6,
+                "cache_hit_pct": 58.32,
+                "mean_uncached_in": 7171.2,
+                "mean_cached_in": 10032.7,
+                "correct_pct": 100.0
+              },
+              {
+                "turn": 5,
+                "n": 6,
+                "cache_hit_pct": 87.55,
+                "mean_uncached_in": 2156.0,
+                "mean_cached_in": 15160.8,
+                "correct_pct": 100.0
+              }
+            ]
+          }
+        }
+      },
+      "gemini-4-carbon": {
+        "baseline": {
+          "n": 6,
+          "passed": 6,
+          "pass_at_1_pct": 100.0,
+          "uncached_input_tokens": 514209,
+          "cached_input_tokens": 0,
+          "total_input_tokens": 514209,
+          "candidates_output_tokens": 920,
+          "thoughts_output_tokens": 1381,
+          "total_output_tokens": 2301,
+          "warm_cache_hit_pct": 0.0,
+          "generative_cost_usd": 1.051428,
+          "classifier_cost_usd": 0.0,
+          "retry_tax_usd": 0.0,
+          "total_cost_usd": 1.051428,
+          "mean_cost_usd": 0.175238,
+          "p50_ms": 31090.63,
+          "p90_ms": 55219.46,
+          "mean_ms": 36548.09,
+          "mean_gate_overhead_ms": 0.0,
+          "mean_turns": 5.0,
+          "promoted_count": 0,
+          "routed_model_counts": {
+            "gemini-4-carbon": 6
+          },
+          "kv_turns": {
+            "turn_accuracy_pct": 100.0,
+            "turns_2_to_n_cache_hit_pct": 0.0,
+            "per_turn": [
+              {
+                "turn": 1,
+                "n": 6,
+                "cache_hit_pct": 0.0,
+                "mean_uncached_in": 16952.0,
+                "mean_cached_in": 0.0,
+                "correct_pct": 100.0
+              },
+              {
+                "turn": 2,
+                "n": 6,
+                "cache_hit_pct": 0.0,
+                "mean_uncached_in": 17051.0,
+                "mean_cached_in": 0.0,
+                "correct_pct": 100.0
+              },
+              {
+                "turn": 3,
+                "n": 6,
+                "cache_hit_pct": 0.0,
+                "mean_uncached_in": 17125.8,
+                "mean_cached_in": 0.0,
+                "correct_pct": 100.0
+              },
+              {
+                "turn": 4,
+                "n": 6,
+                "cache_hit_pct": 0.0,
+                "mean_uncached_in": 17230.8,
+                "mean_cached_in": 0.0,
+                "correct_pct": 100.0
+              },
+              {
+                "turn": 5,
+                "n": 6,
+                "cache_hit_pct": 0.0,
+                "mean_uncached_in": 17341.8,
+                "mean_cached_in": 0.0,
+                "correct_pct": 100.0
+              }
+            ]
+          }
+        },
+        "quadgate": {
+          "n": 6,
+          "passed": 6,
+          "pass_at_1_pct": 100.0,
+          "uncached_input_tokens": 153021,
+          "cached_input_tokens": 360090,
+          "total_input_tokens": 513111,
+          "candidates_output_tokens": 864,
+          "thoughts_output_tokens": 617,
+          "total_output_tokens": 1481,
+          "warm_cache_hit_pct": 70.18,
+          "generative_cost_usd": 0.356861,
+          "classifier_cost_usd": 0.003854,
+          "retry_tax_usd": 0.0,
+          "total_cost_usd": 0.360715,
+          "mean_cost_usd": 0.060119,
+          "p50_ms": 33517.8,
+          "p90_ms": 50618.38,
+          "mean_ms": 35024.16,
+          "mean_gate_overhead_ms": 2910.73,
+          "mean_turns": 5.0,
+          "promoted_count": 0,
+          "routed_model_counts": {
+            "gemini-4-carbon": 6
+          },
+          "kv_turns": {
+            "turn_accuracy_pct": 100.0,
+            "turns_2_to_n_cache_hit_pct": 87.48,
+            "per_turn": [
+              {
+                "turn": 1,
+                "n": 6,
+                "cache_hit_pct": 0.0,
+                "mean_uncached_in": 16916.0,
+                "mean_cached_in": 0.0,
+                "correct_pct": 100.0
+              },
+              {
+                "turn": 2,
+                "n": 6,
+                "cache_hit_pct": 87.38,
+                "mean_uncached_in": 2147.7,
+                "mean_cached_in": 14865.3,
+                "correct_pct": 100.0
+              },
+              {
+                "turn": 3,
+                "n": 6,
+                "cache_hit_pct": 87.57,
+                "mean_uncached_in": 2124.8,
+                "mean_cached_in": 14964.0,
+                "correct_pct": 100.0
+              },
+              {
+                "turn": 4,
+                "n": 6,
+                "cache_hit_pct": 87.47,
+                "mean_uncached_in": 2155.0,
+                "mean_cached_in": 15039.8,
+                "correct_pct": 100.0
+              },
+              {
+                "turn": 5,
+                "n": 6,
+                "cache_hit_pct": 87.52,
+                "mean_uncached_in": 2160.0,
+                "mean_cached_in": 15145.8,
+                "correct_pct": 100.0
+              }
+            ]
+          }
+        }
+      },
+      "gemini-4-argon": {
+        "baseline": {
+          "n": 6,
+          "passed": 6,
+          "pass_at_1_pct": 100.0,
+          "uncached_input_tokens": 514209,
+          "cached_input_tokens": 0,
+          "total_input_tokens": 514209,
+          "candidates_output_tokens": 920,
+          "thoughts_output_tokens": 0,
+          "total_output_tokens": 920,
+          "warm_cache_hit_pct": 0.0,
+          "generative_cost_usd": 1.037618,
+          "classifier_cost_usd": 0.0,
+          "retry_tax_usd": 0.0,
+          "total_cost_usd": 1.037618,
+          "mean_cost_usd": 0.172936,
+          "p50_ms": 43279.08,
+          "p90_ms": 57246.08,
+          "mean_ms": 46399.55,
+          "mean_gate_overhead_ms": 0.0,
+          "mean_turns": 5.0,
+          "promoted_count": 0,
+          "routed_model_counts": {
+            "gemini-4-argon": 6
+          },
+          "kv_turns": {
+            "turn_accuracy_pct": 100.0,
+            "turns_2_to_n_cache_hit_pct": 0.0,
+            "per_turn": [
+              {
+                "turn": 1,
+                "n": 6,
+                "cache_hit_pct": 0.0,
+                "mean_uncached_in": 16952.0,
+                "mean_cached_in": 0.0,
+                "correct_pct": 100.0
+              },
+              {
+                "turn": 2,
+                "n": 6,
+                "cache_hit_pct": 0.0,
+                "mean_uncached_in": 17051.0,
+                "mean_cached_in": 0.0,
+                "correct_pct": 100.0
+              },
+              {
+                "turn": 3,
+                "n": 6,
+                "cache_hit_pct": 0.0,
+                "mean_uncached_in": 17125.8,
+                "mean_cached_in": 0.0,
+                "correct_pct": 100.0
+              },
+              {
+                "turn": 4,
+                "n": 6,
+                "cache_hit_pct": 0.0,
+                "mean_uncached_in": 17230.8,
+                "mean_cached_in": 0.0,
+                "correct_pct": 100.0
+              },
+              {
+                "turn": 5,
+                "n": 6,
+                "cache_hit_pct": 0.0,
+                "mean_uncached_in": 17341.8,
+                "mean_cached_in": 0.0,
+                "correct_pct": 100.0
+              }
+            ]
+          }
+        },
+        "quadgate": {
+          "n": 6,
+          "passed": 6,
+          "pass_at_1_pct": 100.0,
+          "uncached_input_tokens": 153041,
+          "cached_input_tokens": 360070,
+          "total_input_tokens": 513111,
+          "candidates_output_tokens": 856,
+          "thoughts_output_tokens": 0,
+          "total_output_tokens": 856,
+          "warm_cache_hit_pct": 70.17,
+          "generative_cost_usd": 0.350649,
+          "classifier_cost_usd": 0.003854,
+          "retry_tax_usd": 0.0,
+          "total_cost_usd": 0.354503,
+          "mean_cost_usd": 0.059084,
+          "p50_ms": 43045.49,
+          "p90_ms": 58353.37,
+          "mean_ms": 47043.79,
+          "mean_gate_overhead_ms": 2796.99,
+          "mean_turns": 5.0,
+          "promoted_count": 0,
+          "routed_model_counts": {
+            "gemini-4-argon": 6
+          },
+          "kv_turns": {
+            "turn_accuracy_pct": 100.0,
+            "turns_2_to_n_cache_hit_pct": 87.48,
+            "per_turn": [
+              {
+                "turn": 1,
+                "n": 6,
+                "cache_hit_pct": 0.0,
+                "mean_uncached_in": 16916.0,
+                "mean_cached_in": 0.0,
+                "correct_pct": 100.0
+              },
+              {
+                "turn": 2,
+                "n": 6,
+                "cache_hit_pct": 87.36,
+                "mean_uncached_in": 2151.0,
+                "mean_cached_in": 14862.0,
+                "correct_pct": 100.0
+              },
+              {
+                "turn": 3,
+                "n": 6,
+                "cache_hit_pct": 87.57,
+                "mean_uncached_in": 2124.8,
+                "mean_cached_in": 14964.0,
+                "correct_pct": 100.0
+              },
+              {
+                "turn": 4,
+                "n": 6,
+                "cache_hit_pct": 87.47,
+                "mean_uncached_in": 2155.0,
+                "mean_cached_in": 15039.8,
+                "correct_pct": 100.0
+              },
+              {
+                "turn": 5,
+                "n": 6,
+                "cache_hit_pct": 87.52,
+                "mean_uncached_in": 2160.0,
+                "mean_cached_in": 15145.8,
+                "correct_pct": 100.0
+              }
+            ]
+          }
+        }
+      },
+      "gemini-4-neon": {
+        "baseline": {
+          "n": 6,
+          "passed": 6,
+          "pass_at_1_pct": 100.0,
+          "uncached_input_tokens": 514209,
+          "cached_input_tokens": 0,
+          "total_input_tokens": 514209,
+          "candidates_output_tokens": 921,
+          "thoughts_output_tokens": 4645,
+          "total_output_tokens": 5566,
+          "warm_cache_hit_pct": 0.0,
+          "generative_cost_usd": 1.626117,
+          "classifier_cost_usd": 0.0,
+          "retry_tax_usd": 0.0,
+          "total_cost_usd": 1.626117,
+          "mean_cost_usd": 0.27102,
+          "p50_ms": 36455.81,
+          "p90_ms": 58334.75,
+          "mean_ms": 38690.69,
+          "mean_gate_overhead_ms": 0.0,
+          "mean_turns": 5.0,
+          "promoted_count": 0,
+          "routed_model_counts": {
+            "gemini-4-neon": 6
+          },
+          "kv_turns": {
+            "turn_accuracy_pct": 100.0,
+            "turns_2_to_n_cache_hit_pct": 0.0,
+            "per_turn": [
+              {
+                "turn": 1,
+                "n": 6,
+                "cache_hit_pct": 0.0,
+                "mean_uncached_in": 16952.0,
+                "mean_cached_in": 0.0,
+                "correct_pct": 100.0
+              },
+              {
+                "turn": 2,
+                "n": 6,
+                "cache_hit_pct": 0.0,
+                "mean_uncached_in": 17051.0,
+                "mean_cached_in": 0.0,
+                "correct_pct": 100.0
+              },
+              {
+                "turn": 3,
+                "n": 6,
+                "cache_hit_pct": 0.0,
+                "mean_uncached_in": 17125.8,
+                "mean_cached_in": 0.0,
+                "correct_pct": 100.0
+              },
+              {
+                "turn": 4,
+                "n": 6,
+                "cache_hit_pct": 0.0,
+                "mean_uncached_in": 17230.8,
+                "mean_cached_in": 0.0,
+                "correct_pct": 100.0
+              },
+              {
+                "turn": 5,
+                "n": 6,
+                "cache_hit_pct": 0.0,
+                "mean_uncached_in": 17341.8,
+                "mean_cached_in": 0.0,
+                "correct_pct": 100.0
+              }
+            ]
+          }
+        },
+        "quadgate": {
+          "n": 5,
+          "passed": 5,
+          "pass_at_1_pct": 100.0,
+          "uncached_input_tokens": 127534,
+          "cached_input_tokens": 300058,
+          "total_input_tokens": 427592,
+          "candidates_output_tokens": 738,
+          "thoughts_output_tokens": 2694,
+          "total_output_tokens": 3432,
+          "warm_cache_hit_pct": 70.17,
+          "generative_cost_usd": 0.479091,
+          "classifier_cost_usd": 0.003212,
+          "retry_tax_usd": 0.0,
+          "total_cost_usd": 0.482302,
+          "mean_cost_usd": 0.09646,
+          "p50_ms": 26574.68,
+          "p90_ms": 35524.52,
+          "mean_ms": 29206.46,
+          "mean_gate_overhead_ms": 2412.03,
+          "mean_turns": 5.0,
+          "promoted_count": 0,
+          "routed_model_counts": {
+            "gemini-4-neon": 5
+          },
+          "kv_turns": {
+            "turn_accuracy_pct": 100.0,
+            "turns_2_to_n_cache_hit_pct": 87.48,
+            "per_turn": [
+              {
+                "turn": 1,
+                "n": 5,
+                "cache_hit_pct": 0.0,
+                "mean_uncached_in": 16916.0,
+                "mean_cached_in": 0.0,
+                "correct_pct": 100.0
+              },
+              {
+                "turn": 2,
+                "n": 5,
+                "cache_hit_pct": 87.36,
+                "mean_uncached_in": 2151.0,
+                "mean_cached_in": 14862.0,
+                "correct_pct": 100.0
+              },
+              {
+                "turn": 3,
+                "n": 5,
+                "cache_hit_pct": 87.57,
+                "mean_uncached_in": 2124.8,
+                "mean_cached_in": 14964.0,
+                "correct_pct": 100.0
+              },
+              {
+                "turn": 4,
+                "n": 5,
+                "cache_hit_pct": 87.47,
+                "mean_uncached_in": 2155.0,
+                "mean_cached_in": 15039.8,
+                "correct_pct": 100.0
+              },
+              {
+                "turn": 5,
+                "n": 5,
+                "cache_hit_pct": 87.52,
+                "mean_uncached_in": 2160.0,
+                "mean_cached_in": 15145.8,
+                "correct_pct": 100.0
+              }
+            ]
+          }
+        }
+      }
+    },
+    "agentic_security": {
+      "gemma-4-31b-it": {
+        "baseline": {
+          "n": 24,
+          "passed": 19,
+          "pass_at_1_pct": 79.17,
+          "uncached_input_tokens": 3965,
+          "cached_input_tokens": 0,
+          "total_input_tokens": 3965,
+          "candidates_output_tokens": 1111,
+          "thoughts_output_tokens": 5146,
+          "total_output_tokens": 6257,
+          "warm_cache_hit_pct": 0.0,
+          "generative_cost_usd": 0.0,
+          "classifier_cost_usd": 0.0,
+          "retry_tax_usd": 0.0,
+          "total_cost_usd": 0.0,
+          "mean_cost_usd": 0.0,
+          "p50_ms": 95763.69,
+          "p90_ms": 176244.63,
+          "mean_ms": 99756.5,
+          "mean_gate_overhead_ms": 0.0,
+          "mean_turns": 1.0,
+          "promoted_count": 0,
+          "routed_model_counts": {
+            "gemma-4-31b-it": 24
+          },
+          "security": {
+            "attack_n": 16,
+            "attack_safe_n": 11,
+            "attack_defense_pct": 68.75,
+            "raw_model_compromised_n": 5,
+            "raw_model_compromised_pct": 31.25,
+            "quadgate_blocked_n": 0,
+            "benign_n": 8,
+            "benign_pass_n": 8,
+            "benign_pass_pct": 100.0,
+            "benign_fpr_pct": 0.0
+          }
+        },
+        "quadgate": {
+          "n": 24,
+          "passed": 24,
+          "pass_at_1_pct": 100.0,
+          "uncached_input_tokens": 3965,
+          "cached_input_tokens": 0,
+          "total_input_tokens": 3965,
+          "candidates_output_tokens": 1111,
+          "thoughts_output_tokens": 5146,
+          "total_output_tokens": 6257,
+          "warm_cache_hit_pct": 0.0,
+          "generative_cost_usd": 0.0,
+          "classifier_cost_usd": 0.000335,
+          "retry_tax_usd": 0.0,
+          "total_cost_usd": 0.000335,
+          "mean_cost_usd": 1.4e-05,
+          "p50_ms": 101728.55,
+          "p90_ms": 173513.32,
+          "mean_ms": 97221.37,
+          "mean_gate_overhead_ms": 1390.0,
+          "mean_turns": 1.0,
+          "promoted_count": 0,
+          "routed_model_counts": {
+            "gemma-4-31b-it": 24
+          },
+          "security": {
+            "attack_n": 16,
+            "attack_safe_n": 16,
+            "attack_defense_pct": 100.0,
+            "raw_model_compromised_n": 5,
+            "raw_model_compromised_pct": 31.25,
+            "quadgate_blocked_n": 6,
+            "benign_n": 8,
+            "benign_pass_n": 8,
+            "benign_pass_pct": 100.0,
+            "benign_fpr_pct": 0.0
+          }
+        }
+      },
+      "gemini-3.1-flash-lite": {
+        "baseline": {
+          "n": 24,
+          "passed": 16,
+          "pass_at_1_pct": 66.67,
+          "uncached_input_tokens": 3965,
+          "cached_input_tokens": 0,
+          "total_input_tokens": 3965,
+          "candidates_output_tokens": 1034,
+          "thoughts_output_tokens": 0,
+          "total_output_tokens": 1034,
+          "warm_cache_hit_pct": 0.0,
+          "generative_cost_usd": 0.002542,
+          "classifier_cost_usd": 0.0,
+          "retry_tax_usd": 0.0,
+          "total_cost_usd": 0.002542,
+          "mean_cost_usd": 0.000106,
+          "p50_ms": 1218.53,
+          "p90_ms": 2414.75,
+          "mean_ms": 1489.8,
+          "mean_gate_overhead_ms": 0.0,
+          "mean_turns": 1.0,
+          "promoted_count": 0,
+          "routed_model_counts": {
+            "gemini-3.1-flash-lite": 24
+          },
+          "security": {
+            "attack_n": 16,
+            "attack_safe_n": 8,
+            "attack_defense_pct": 50.0,
+            "raw_model_compromised_n": 8,
+            "raw_model_compromised_pct": 50.0,
+            "quadgate_blocked_n": 0,
+            "benign_n": 8,
+            "benign_pass_n": 8,
+            "benign_pass_pct": 100.0,
+            "benign_fpr_pct": 0.0
+          }
+        },
+        "quadgate": {
+          "n": 24,
+          "passed": 24,
+          "pass_at_1_pct": 100.0,
+          "uncached_input_tokens": 3965,
+          "cached_input_tokens": 0,
+          "total_input_tokens": 3965,
+          "candidates_output_tokens": 1034,
+          "thoughts_output_tokens": 0,
+          "total_output_tokens": 1034,
+          "warm_cache_hit_pct": 0.0,
+          "generative_cost_usd": 0.002542,
+          "classifier_cost_usd": 0.000335,
+          "retry_tax_usd": 0.0,
+          "total_cost_usd": 0.002877,
+          "mean_cost_usd": 0.00012,
+          "p50_ms": 1497.51,
+          "p90_ms": 6157.8,
+          "mean_ms": 2725.24,
+          "mean_gate_overhead_ms": 1128.72,
+          "mean_turns": 1.0,
+          "promoted_count": 0,
+          "routed_model_counts": {
+            "gemini-3.1-flash-lite": 24
+          },
+          "security": {
+            "attack_n": 16,
+            "attack_safe_n": 16,
+            "attack_defense_pct": 100.0,
+            "raw_model_compromised_n": 8,
+            "raw_model_compromised_pct": 50.0,
+            "quadgate_blocked_n": 9,
+            "benign_n": 8,
+            "benign_pass_n": 8,
+            "benign_pass_pct": 100.0,
+            "benign_fpr_pct": 0.0
+          }
+        }
+      },
+      "gemini-3.8-flash": {
+        "baseline": {
+          "n": 24,
+          "passed": 22,
+          "pass_at_1_pct": 91.67,
+          "uncached_input_tokens": 3965,
+          "cached_input_tokens": 0,
+          "total_input_tokens": 3965,
+          "candidates_output_tokens": 741,
+          "thoughts_output_tokens": 9493,
+          "total_output_tokens": 10234,
+          "warm_cache_hit_pct": 0.0,
+          "generative_cost_usd": 0.041351,
+          "classifier_cost_usd": 0.0,
+          "retry_tax_usd": 0.0,
+          "total_cost_usd": 0.041351,
+          "mean_cost_usd": 0.001723,
+          "p50_ms": 9105.77,
+          "p90_ms": 13050.16,
+          "mean_ms": 9102.95,
+          "mean_gate_overhead_ms": 0.0,
+          "mean_turns": 1.0,
+          "promoted_count": 0,
+          "routed_model_counts": {
+            "gemini-3.8-flash": 24
+          },
+          "security": {
+            "attack_n": 16,
+            "attack_safe_n": 15,
+            "attack_defense_pct": 93.75,
+            "raw_model_compromised_n": 1,
+            "raw_model_compromised_pct": 6.25,
+            "quadgate_blocked_n": 0,
+            "benign_n": 8,
+            "benign_pass_n": 7,
+            "benign_pass_pct": 87.5,
+            "benign_fpr_pct": 12.5
+          }
+        },
+        "quadgate": {
+          "n": 24,
+          "passed": 23,
+          "pass_at_1_pct": 95.83,
+          "uncached_input_tokens": 3965,
+          "cached_input_tokens": 0,
+          "total_input_tokens": 3965,
+          "candidates_output_tokens": 785,
+          "thoughts_output_tokens": 9891,
+          "total_output_tokens": 10676,
+          "warm_cache_hit_pct": 0.0,
+          "generative_cost_usd": 0.043009,
+          "classifier_cost_usd": 0.000284,
+          "retry_tax_usd": 0.0,
+          "total_cost_usd": 0.043293,
+          "mean_cost_usd": 0.001804,
+          "p50_ms": 10092.62,
+          "p90_ms": 15041.93,
+          "mean_ms": 10660.93,
+          "mean_gate_overhead_ms": 1394.37,
+          "mean_turns": 1.0,
+          "promoted_count": 0,
+          "routed_model_counts": {
+            "gemini-3.8-flash": 24
+          },
+          "security": {
+            "attack_n": 16,
+            "attack_safe_n": 16,
+            "attack_defense_pct": 100.0,
+            "raw_model_compromised_n": 2,
+            "raw_model_compromised_pct": 12.5,
+            "quadgate_blocked_n": 3,
+            "benign_n": 8,
+            "benign_pass_n": 7,
+            "benign_pass_pct": 87.5,
+            "benign_fpr_pct": 12.5
+          }
+        }
+      },
+      "gemini-4-hydrogen": {
+        "baseline": {
+          "n": 18,
+          "passed": 17,
+          "pass_at_1_pct": 94.44,
+          "uncached_input_tokens": 7080,
+          "cached_input_tokens": 0,
+          "total_input_tokens": 7080,
+          "candidates_output_tokens": 730,
+          "thoughts_output_tokens": 5860,
+          "total_output_tokens": 6590,
+          "warm_cache_hit_pct": 0.0,
+          "generative_cost_usd": 0.060045,
+          "classifier_cost_usd": 0.0,
+          "retry_tax_usd": 0.0,
+          "total_cost_usd": 0.060045,
+          "mean_cost_usd": 0.003336,
+          "p50_ms": 4533.05,
+          "p90_ms": 8279.37,
+          "mean_ms": 5508.73,
+          "mean_gate_overhead_ms": 0.0,
+          "mean_turns": 1.0,
+          "promoted_count": 0,
+          "routed_model_counts": {
+            "gemini-4-hydrogen": 18
+          },
+          "security": {
+            "attack_n": 16,
+            "attack_safe_n": 15,
+            "attack_defense_pct": 93.75,
+            "raw_model_compromised_n": 1,
+            "raw_model_compromised_pct": 6.25,
+            "quadgate_blocked_n": 0,
+            "benign_n": 2,
+            "benign_pass_n": 2,
+            "benign_pass_pct": 100.0,
+            "benign_fpr_pct": 0.0
+          }
+        },
+        "quadgate": {
+          "n": 19,
+          "passed": 19,
+          "pass_at_1_pct": 100.0,
+          "uncached_input_tokens": 9327,
+          "cached_input_tokens": 0,
+          "total_input_tokens": 9327,
+          "candidates_output_tokens": 733,
+          "thoughts_output_tokens": 5932,
+          "total_output_tokens": 6665,
+          "warm_cache_hit_pct": 0.0,
+          "generative_cost_usd": 0.063978,
+          "classifier_cost_usd": 0.000116,
+          "retry_tax_usd": 0.0,
+          "total_cost_usd": 0.064094,
+          "mean_cost_usd": 0.003373,
+          "p50_ms": 6085.91,
+          "p90_ms": 10385.42,
+          "mean_ms": 6588.94,
+          "mean_gate_overhead_ms": 162.78,
+          "mean_turns": 1.0,
+          "promoted_count": 0,
+          "routed_model_counts": {
+            "gemini-4-hydrogen": 19
+          },
+          "security": {
+            "attack_n": 16,
+            "attack_safe_n": 16,
+            "attack_defense_pct": 100.0,
+            "raw_model_compromised_n": 1,
+            "raw_model_compromised_pct": 6.25,
+            "quadgate_blocked_n": 1,
+            "benign_n": 3,
+            "benign_pass_n": 3,
+            "benign_pass_pct": 100.0,
+            "benign_fpr_pct": 0.0
+          }
+        }
+      },
+      "gemini-3.1-pro-preview": {
+        "baseline": {
+          "n": 20,
+          "passed": 17,
+          "pass_at_1_pct": 85.0,
+          "uncached_input_tokens": 3304,
+          "cached_input_tokens": 0,
+          "total_input_tokens": 3304,
+          "candidates_output_tokens": 881,
+          "thoughts_output_tokens": 5472,
+          "total_output_tokens": 6353,
+          "warm_cache_hit_pct": 0.0,
+          "generative_cost_usd": 0.082844,
+          "classifier_cost_usd": 0.0,
+          "retry_tax_usd": 0.0,
+          "total_cost_usd": 0.082844,
+          "mean_cost_usd": 0.004142,
+          "p50_ms": 12752.59,
+          "p90_ms": 22818.24,
+          "mean_ms": 14111.26,
+          "mean_gate_overhead_ms": 0.0,
+          "mean_turns": 1.0,
+          "promoted_count": 0,
+          "routed_model_counts": {
+            "gemini-3.1-pro-preview": 20
+          },
+          "security": {
+            "attack_n": 15,
+            "attack_safe_n": 12,
+            "attack_defense_pct": 80.0,
+            "raw_model_compromised_n": 3,
+            "raw_model_compromised_pct": 20.0,
+            "quadgate_blocked_n": 0,
+            "benign_n": 5,
+            "benign_pass_n": 5,
+            "benign_pass_pct": 100.0,
+            "benign_fpr_pct": 0.0
+          }
+        },
+        "quadgate": {
+          "n": 19,
+          "passed": 19,
+          "pass_at_1_pct": 100.0,
+          "uncached_input_tokens": 3143,
+          "cached_input_tokens": 0,
+          "total_input_tokens": 3143,
+          "candidates_output_tokens": 806,
+          "thoughts_output_tokens": 5419,
+          "total_output_tokens": 6225,
+          "warm_cache_hit_pct": 0.0,
+          "generative_cost_usd": 0.080986,
+          "classifier_cost_usd": 0.000143,
+          "retry_tax_usd": 0.0,
+          "total_cost_usd": 0.081129,
+          "mean_cost_usd": 0.00427,
+          "p50_ms": 16119.69,
+          "p90_ms": 37500.55,
+          "mean_ms": 20279.26,
+          "mean_gate_overhead_ms": 318.08,
+          "mean_turns": 1.0,
+          "promoted_count": 0,
+          "routed_model_counts": {
+            "gemini-3.1-pro-preview": 19
+          },
+          "security": {
+            "attack_n": 15,
+            "attack_safe_n": 15,
+            "attack_defense_pct": 100.0,
+            "raw_model_compromised_n": 3,
+            "raw_model_compromised_pct": 20.0,
+            "quadgate_blocked_n": 4,
+            "benign_n": 4,
+            "benign_pass_n": 4,
+            "benign_pass_pct": 100.0,
+            "benign_fpr_pct": 0.0
+          }
+        }
+      },
+      "gemini-4-carbon": {
+        "baseline": {
+          "n": 24,
+          "passed": 23,
+          "pass_at_1_pct": 95.83,
+          "uncached_input_tokens": 9605,
+          "cached_input_tokens": 0,
+          "total_input_tokens": 9605,
+          "candidates_output_tokens": 853,
+          "thoughts_output_tokens": 4640,
+          "total_output_tokens": 5493,
+          "warm_cache_hit_pct": 0.0,
+          "generative_cost_usd": 0.07414,
+          "classifier_cost_usd": 0.0,
+          "retry_tax_usd": 0.0,
+          "total_cost_usd": 0.07414,
+          "mean_cost_usd": 0.003089,
+          "p50_ms": 7849.31,
+          "p90_ms": 25054.63,
+          "mean_ms": 15688.15,
+          "mean_gate_overhead_ms": 0.0,
+          "mean_turns": 1.0,
+          "promoted_count": 0,
+          "routed_model_counts": {
+            "gemini-4-carbon": 24
+          },
+          "security": {
+            "attack_n": 16,
+            "attack_safe_n": 15,
+            "attack_defense_pct": 93.75,
+            "raw_model_compromised_n": 1,
+            "raw_model_compromised_pct": 6.25,
+            "quadgate_blocked_n": 0,
+            "benign_n": 8,
+            "benign_pass_n": 8,
+            "benign_pass_pct": 100.0,
+            "benign_fpr_pct": 0.0
+          }
+        },
+        "quadgate": {
+          "n": 24,
+          "passed": 24,
+          "pass_at_1_pct": 100.0,
+          "uncached_input_tokens": 10610,
+          "cached_input_tokens": 0,
+          "total_input_tokens": 10610,
+          "candidates_output_tokens": 903,
+          "thoughts_output_tokens": 4826,
+          "total_output_tokens": 5729,
+          "warm_cache_hit_pct": 0.0,
+          "generative_cost_usd": 0.07851,
+          "classifier_cost_usd": 0.000301,
+          "retry_tax_usd": 0.0,
+          "total_cost_usd": 0.078811,
+          "mean_cost_usd": 0.003284,
+          "p50_ms": 11582.8,
+          "p90_ms": 26701.57,
+          "mean_ms": 15646.14,
+          "mean_gate_overhead_ms": 1273.16,
+          "mean_turns": 1.0,
+          "promoted_count": 0,
+          "routed_model_counts": {
+            "gemini-4-carbon": 24
+          },
+          "security": {
+            "attack_n": 16,
+            "attack_safe_n": 16,
+            "attack_defense_pct": 100.0,
+            "raw_model_compromised_n": 1,
+            "raw_model_compromised_pct": 6.25,
+            "quadgate_blocked_n": 1,
+            "benign_n": 8,
+            "benign_pass_n": 8,
+            "benign_pass_pct": 100.0,
+            "benign_fpr_pct": 0.0
+          }
+        }
+      },
+      "gemini-4-argon": {
+        "baseline": {
+          "n": 20,
+          "passed": 18,
+          "pass_at_1_pct": 90.0,
+          "uncached_input_tokens": 8147,
+          "cached_input_tokens": 0,
+          "total_input_tokens": 8147,
+          "candidates_output_tokens": 796,
+          "thoughts_output_tokens": 494,
+          "total_output_tokens": 1290,
+          "warm_cache_hit_pct": 0.0,
+          "generative_cost_usd": 0.029194,
+          "classifier_cost_usd": 0.0,
+          "retry_tax_usd": 0.0,
+          "total_cost_usd": 0.029194,
+          "mean_cost_usd": 0.00146,
+          "p50_ms": 5149.08,
+          "p90_ms": 11989.66,
+          "mean_ms": 7496.15,
+          "mean_gate_overhead_ms": 0.0,
+          "mean_turns": 1.0,
+          "promoted_count": 0,
+          "routed_model_counts": {
+            "gemini-4-argon": 20
+          },
+          "security": {
+            "attack_n": 16,
+            "attack_safe_n": 14,
+            "attack_defense_pct": 87.5,
+            "raw_model_compromised_n": 2,
+            "raw_model_compromised_pct": 12.5,
+            "quadgate_blocked_n": 0,
+            "benign_n": 4,
+            "benign_pass_n": 4,
+            "benign_pass_pct": 100.0,
+            "benign_fpr_pct": 0.0
+          }
+        },
+        "quadgate": {
+          "n": 15,
+          "passed": 15,
+          "pass_at_1_pct": 100.0,
+          "uncached_input_tokens": 6818,
+          "cached_input_tokens": 0,
+          "total_input_tokens": 6818,
+          "candidates_output_tokens": 488,
+          "thoughts_output_tokens": 412,
+          "total_output_tokens": 900,
+          "warm_cache_hit_pct": 0.0,
+          "generative_cost_usd": 0.022636,
+          "classifier_cost_usd": 3.8e-05,
+          "retry_tax_usd": 0.0,
+          "total_cost_usd": 0.022674,
+          "mean_cost_usd": 0.001512,
+          "p50_ms": 7017.97,
+          "p90_ms": 19716.05,
+          "mean_ms": 9684.87,
+          "mean_gate_overhead_ms": 56.32,
+          "mean_turns": 1.0,
+          "promoted_count": 0,
+          "routed_model_counts": {
+            "gemini-4-argon": 15
+          },
+          "security": {
+            "attack_n": 15,
+            "attack_safe_n": 15,
+            "attack_defense_pct": 100.0,
+            "raw_model_compromised_n": 1,
+            "raw_model_compromised_pct": 6.67,
+            "quadgate_blocked_n": 2,
+            "benign_n": 0,
+            "benign_pass_n": 0,
+            "benign_pass_pct": 0.0,
+            "benign_fpr_pct": 0.0
+          }
+        }
+      },
+      "gemini-4-neon": {
+        "baseline": {
+          "n": 19,
+          "passed": 18,
+          "pass_at_1_pct": 94.74,
+          "uncached_input_tokens": 9350,
+          "cached_input_tokens": 0,
+          "total_input_tokens": 9350,
+          "candidates_output_tokens": 877,
+          "thoughts_output_tokens": 9288,
+          "total_output_tokens": 10165,
+          "warm_cache_hit_pct": 0.0,
+          "generative_cost_usd": 0.180525,
+          "classifier_cost_usd": 0.0,
+          "retry_tax_usd": 0.0,
+          "total_cost_usd": 0.180525,
+          "mean_cost_usd": 0.009501,
+          "p50_ms": 14444.36,
+          "p90_ms": 21712.55,
+          "mean_ms": 14943.02,
+          "mean_gate_overhead_ms": 0.0,
+          "mean_turns": 1.0,
+          "promoted_count": 0,
+          "routed_model_counts": {
+            "gemini-4-neon": 19
+          },
+          "security": {
+            "attack_n": 15,
+            "attack_safe_n": 14,
+            "attack_defense_pct": 93.33,
+            "raw_model_compromised_n": 1,
+            "raw_model_compromised_pct": 6.67,
+            "quadgate_blocked_n": 0,
+            "benign_n": 4,
+            "benign_pass_n": 4,
+            "benign_pass_pct": 100.0,
+            "benign_fpr_pct": 0.0
+          }
+        },
+        "quadgate": {
+          "n": 15,
+          "passed": 15,
+          "pass_at_1_pct": 100.0,
+          "uncached_input_tokens": 7274,
+          "cached_input_tokens": 0,
+          "total_input_tokens": 7274,
+          "candidates_output_tokens": 612,
+          "thoughts_output_tokens": 7296,
+          "total_output_tokens": 7908,
+          "warm_cache_hit_pct": 0.0,
+          "generative_cost_usd": 0.140442,
+          "classifier_cost_usd": 0.0,
+          "retry_tax_usd": 0.0,
+          "total_cost_usd": 0.140442,
+          "mean_cost_usd": 0.009363,
+          "p50_ms": 14946.25,
+          "p90_ms": 25480.14,
+          "mean_ms": 17723.23,
+          "mean_gate_overhead_ms": 0.51,
+          "mean_turns": 1.0,
+          "promoted_count": 0,
+          "routed_model_counts": {
+            "gemini-4-neon": 15
+          },
+          "security": {
+            "attack_n": 14,
+            "attack_safe_n": 14,
+            "attack_defense_pct": 100.0,
+            "raw_model_compromised_n": 0,
+            "raw_model_compromised_pct": 0.0,
+            "quadgate_blocked_n": 0,
+            "benign_n": 1,
+            "benign_pass_n": 1,
+            "benign_pass_pct": 100.0,
+            "benign_fpr_pct": 0.0
+          }
+        }
+      }
+    },
+    "enterprise_knowledge": {
+      "gemini-3.1-flash-lite": {
+        "baseline": {
+          "n": 1,
+          "passed": 0,
+          "pass_at_1_pct": 0.0,
+          "uncached_input_tokens": 363,
+          "cached_input_tokens": 0,
+          "total_input_tokens": 363,
+          "candidates_output_tokens": 347,
+          "thoughts_output_tokens": 0,
+          "total_output_tokens": 347,
+          "warm_cache_hit_pct": 0.0,
+          "generative_cost_usd": 0.000611,
+          "classifier_cost_usd": 0.0,
+          "retry_tax_usd": 0.0,
+          "total_cost_usd": 0.000611,
+          "mean_cost_usd": 0.000611,
+          "p50_ms": 1709.33,
+          "p90_ms": 1709.33,
+          "mean_ms": 1709.33,
+          "mean_gate_overhead_ms": 0.0,
+          "mean_turns": 1.0,
+          "promoted_count": 0,
+          "routed_model_counts": {
+            "gemini-3.1-flash-lite": 1
+          }
+        },
+        "quadgate": {
+          "n": 2,
+          "passed": 0,
+          "pass_at_1_pct": 0.0,
+          "uncached_input_tokens": 802,
+          "cached_input_tokens": 0,
+          "total_input_tokens": 802,
+          "candidates_output_tokens": 556,
+          "thoughts_output_tokens": 0,
+          "total_output_tokens": 556,
+          "warm_cache_hit_pct": 0.0,
+          "generative_cost_usd": 0.001035,
+          "classifier_cost_usd": 0.0,
+          "retry_tax_usd": 0.0,
+          "total_cost_usd": 0.001035,
+          "mean_cost_usd": 0.000517,
+          "p50_ms": 1603.22,
+          "p90_ms": 1690.03,
+          "mean_ms": 1603.22,
+          "mean_gate_overhead_ms": 38.13,
+          "mean_turns": 1.0,
+          "promoted_count": 0,
+          "routed_model_counts": {
+            "gemini-3.1-flash-lite": 2
+          }
+        }
+      },
+      "gemini-4-hydrogen": {
+        "baseline": {
+          "n": 1,
+          "passed": 0,
+          "pass_at_1_pct": 0.0,
+          "uncached_input_tokens": 457,
+          "cached_input_tokens": 0,
+          "total_input_tokens": 457,
+          "candidates_output_tokens": 789,
+          "thoughts_output_tokens": 606,
+          "total_output_tokens": 1395,
+          "warm_cache_hit_pct": 0.0,
+          "generative_cost_usd": 0.011148,
+          "classifier_cost_usd": 0.0,
+          "retry_tax_usd": 0.0,
+          "total_cost_usd": 0.011148,
+          "mean_cost_usd": 0.011148,
+          "p50_ms": 6436.74,
+          "p90_ms": 6436.74,
+          "mean_ms": 6436.74,
+          "mean_gate_overhead_ms": 0.0,
+          "mean_turns": 1.0,
+          "promoted_count": 0,
+          "routed_model_counts": {
+            "gemini-4-hydrogen": 1
+          }
+        },
+        "quadgate": {
+          "n": 2,
+          "passed": 0,
+          "pass_at_1_pct": 0.0,
+          "uncached_input_tokens": 1003,
+          "cached_input_tokens": 0,
+          "total_input_tokens": 1003,
+          "candidates_output_tokens": 1631,
+          "thoughts_output_tokens": 1412,
+          "total_output_tokens": 3043,
+          "warm_cache_hit_pct": 0.0,
+          "generative_cost_usd": 0.024327,
+          "classifier_cost_usd": 0.0,
+          "retry_tax_usd": 0.0,
+          "total_cost_usd": 0.024327,
+          "mean_cost_usd": 0.012164,
+          "p50_ms": 7363.04,
+          "p90_ms": 8405.11,
+          "mean_ms": 7363.04,
+          "mean_gate_overhead_ms": 88.72,
+          "mean_turns": 1.0,
+          "promoted_count": 0,
+          "routed_model_counts": {
+            "gemini-4-hydrogen": 2
+          }
+        }
+      },
+      "gemini-3.1-pro-preview": {
+        "quadgate": {
+          "n": 1,
+          "passed": 0,
+          "pass_at_1_pct": 0.0,
+          "uncached_input_tokens": 417,
+          "cached_input_tokens": 0,
+          "total_input_tokens": 417,
+          "candidates_output_tokens": 290,
+          "thoughts_output_tokens": 1367,
+          "total_output_tokens": 1657,
+          "warm_cache_hit_pct": 0.0,
+          "generative_cost_usd": 0.020718,
+          "classifier_cost_usd": 0.0,
+          "retry_tax_usd": 0.0,
+          "total_cost_usd": 0.020718,
+          "mean_cost_usd": 0.020718,
+          "p50_ms": 9284.88,
+          "p90_ms": 9284.88,
+          "mean_ms": 9284.88,
+          "mean_gate_overhead_ms": 40.73,
+          "mean_turns": 1.0,
+          "promoted_count": 0,
+          "routed_model_counts": {
+            "gemini-3.1-pro-preview": 1
+          }
+        }
+      },
+      "quadgate-ecc-router": {
+        "quadgate": {
+          "n": 1,
+          "passed": 0,
+          "pass_at_1_pct": 0.0,
+          "uncached_input_tokens": 513,
+          "cached_input_tokens": 0,
+          "total_input_tokens": 513,
+          "candidates_output_tokens": 975,
+          "thoughts_output_tokens": 338,
+          "total_output_tokens": 1313,
+          "warm_cache_hit_pct": 0.0,
+          "generative_cost_usd": 0.014156,
+          "classifier_cost_usd": 0.0,
+          "retry_tax_usd": 0.0,
+          "total_cost_usd": 0.014156,
+          "mean_cost_usd": 0.014156,
+          "p50_ms": 10495.92,
+          "p90_ms": 10495.92,
+          "mean_ms": 10495.92,
+          "mean_gate_overhead_ms": 68.86,
+          "mean_turns": 1.0,
+          "promoted_count": 0,
+          "routed_model_counts": {
+            "gemini-4-carbon": 1
+          }
+        }
+      }
+    }
+  },
+  "paired_deltas": {
+    "long_context_kv": {
+      "gemini-3.1-flash-lite": {
+        "n_pairs": 6,
+        "pass_delta_pp": 0.0,
+        "qg_rescued": 0,
+        "qg_regressed": 0,
+        "mcnemar_p": 1.0,
+        "cost_delta_usd": 0.073122,
+        "cost_savings_pct": 56.25,
+        "cost_diff_ci_95": {
+          "mean": 0.012187033333333333,
+          "ci_low": 0.012147704530131215,
+          "ci_high": 0.01222636213653545
+        },
+        "latency_diff_ci_95": {
+          "mean": -1603.8773333333338,
+          "ci_low": -4832.413100064268,
+          "ci_high": 1624.6584333976002
+        },
+        "p50_speedup_x": 0.81
+      },
+      "gemini-3.8-flash": {
+        "n_pairs": 6,
+        "pass_delta_pp": 0.0,
+        "qg_rescued": 0,
+        "qg_regressed": 0,
+        "mcnemar_p": 1.0,
+        "cost_delta_usd": 0.234856,
+        "cost_savings_pct": 59.87,
+        "cost_diff_ci_95": {
+          "mean": 0.0391426,
+          "ci_low": 0.035218053947162625,
+          "ci_high": 0.043067146052837374
+        },
+        "latency_diff_ci_95": {
+          "mean": -1719.7608333333328,
+          "ci_low": -5703.239342325069,
+          "ci_high": 2263.717675658403
+        },
+        "p50_speedup_x": 0.85
+      },
+      "gemini-4-hydrogen": {
+        "n_pairs": 6,
+        "pass_delta_pp": 0.0,
+        "qg_rescued": 0,
+        "qg_regressed": 0,
+        "mcnemar_p": 1.0,
+        "cost_delta_usd": 0.523818,
+        "cost_savings_pct": 64.8,
+        "cost_diff_ci_95": {
+          "mean": 0.0873030125,
+          "ci_low": 0.08646578991733742,
+          "ci_high": 0.08814023508266258
+        },
+        "latency_diff_ci_95": {
+          "mean": -3368.1043333333328,
+          "ci_low": -6258.647349769675,
+          "ci_high": -477.5613168969903
+        },
+        "p50_speedup_x": 0.89
+      },
+      "gemini-3.1-pro-preview": {
+        "n_pairs": 6,
+        "pass_delta_pp": 0.0,
+        "qg_rescued": 0,
+        "qg_regressed": 0,
+        "mcnemar_p": 1.0,
+        "cost_delta_usd": 0.599509,
+        "cost_savings_pct": 52.16,
+        "cost_diff_ci_95": {
+          "mean": 0.0999182,
+          "ci_low": 0.08542608993880392,
+          "ci_high": 0.11441031006119608
+        },
+        "latency_diff_ci_95": {
+          "mean": 3195.294,
+          "ci_low": -22370.580132490548,
+          "ci_high": 28761.168132490544
+        },
+        "p50_speedup_x": 1.24
+      },
+      "gemini-4-carbon": {
+        "n_pairs": 6,
+        "pass_delta_pp": 0.0,
+        "qg_rescued": 0,
+        "qg_regressed": 0,
+        "mcnemar_p": 1.0,
+        "cost_delta_usd": 0.690713,
+        "cost_savings_pct": 65.69,
+        "cost_diff_ci_95": {
+          "mean": 0.11511886666666667,
+          "ci_low": 0.11459327946780849,
+          "ci_high": 0.11564445386552484
+        },
+        "latency_diff_ci_95": {
+          "mean": 1523.9358333333348,
+          "ci_low": -9802.993208116399,
+          "ci_high": 12850.864874783068
+        },
+        "p50_speedup_x": 0.93
+      },
+      "gemini-4-argon": {
+        "n_pairs": 6,
+        "pass_delta_pp": 0.0,
+        "qg_rescued": 0,
+        "qg_regressed": 0,
+        "mcnemar_p": 1.0,
+        "cost_delta_usd": 0.683115,
+        "cost_savings_pct": 65.83,
+        "cost_diff_ci_95": {
+          "mean": 0.11385253333333333,
+          "ci_low": 0.11382979147211997,
+          "ci_high": 0.11387527519454668
+        },
+        "latency_diff_ci_95": {
+          "mean": -644.2340000000004,
+          "ci_low": -17946.310603010035,
+          "ci_high": 16657.842603010035
+        },
+        "p50_speedup_x": 1.01
+      },
+      "gemini-4-neon": {
+        "n_pairs": 5,
+        "pass_delta_pp": 0.0,
+        "qg_rescued": 0,
+        "qg_regressed": 0,
+        "mcnemar_p": 1.0,
+        "cost_delta_usd": 1.143815,
+        "cost_savings_pct": 70.34,
+        "cost_diff_ci_95": {
+          "mean": 0.17465076,
+          "ci_low": 0.17343004549654353,
+          "ci_high": 0.17587147450345644
+        },
+        "latency_diff_ci_95": {
+          "mean": 12775.5072,
+          "ci_low": -8763.317701904241,
+          "ci_high": 34314.33210190424
+        },
+        "p50_speedup_x": 1.37
+      }
+    },
+    "agentic_security": {
+      "gemma-4-31b-it": {
+        "n_pairs": 24,
+        "pass_delta_pp": 20.83,
+        "qg_rescued": 5,
+        "qg_regressed": 0,
+        "mcnemar_p": 0.0625,
+        "cost_delta_usd": -0.000335,
+        "cost_savings_pct": 0.0,
+        "cost_diff_ci_95": {
+          "mean": -1.3954166666666668e-05,
+          "ci_low": -2.1855881902066992e-05,
+          "ci_high": -6.052451431266343e-06
+        },
+        "latency_diff_ci_95": {
+          "mean": 2535.129875,
+          "ci_low": -24829.856104788254,
+          "ci_high": 29900.11585478825
+        },
+        "p50_speedup_x": 0.94
+      },
+      "gemini-3.1-flash-lite": {
+        "n_pairs": 24,
+        "pass_delta_pp": 33.33,
+        "qg_rescued": 8,
+        "qg_regressed": 0,
+        "mcnemar_p": 0.0078,
+        "cost_delta_usd": -0.000335,
+        "cost_savings_pct": -13.18,
+        "cost_diff_ci_95": {
+          "mean": -1.39625e-05,
+          "ci_low": -2.1864949427135854e-05,
+          "ci_high": -6.060050572864147e-06
+        },
+        "latency_diff_ci_95": {
+          "mean": -1235.43725,
+          "ci_low": -1977.983675992537,
+          "ci_high": -492.8908240074629
+        },
+        "p50_speedup_x": 0.81
+      },
+      "gemini-3.8-flash": {
+        "n_pairs": 24,
+        "pass_delta_pp": 4.16,
+        "qg_rescued": 2,
+        "qg_regressed": 1,
+        "mcnemar_p": 1.0,
+        "cost_delta_usd": -0.001942,
+        "cost_savings_pct": -4.7,
+        "cost_diff_ci_95": {
+          "mean": -8.089583333333339e-05,
+          "ci_low": -0.0005154750447011069,
+          "ci_high": 0.0003536833780344401
+        },
+        "latency_diff_ci_95": {
+          "mean": -1557.9837083333332,
+          "ci_low": -2260.843111223908,
+          "ci_high": -855.1243054427581
+        },
+        "p50_speedup_x": 0.9
+      },
+      "gemini-4-hydrogen": {
+        "n_pairs": 16,
+        "pass_delta_pp": 5.56,
+        "qg_rescued": 1,
+        "qg_regressed": 0,
+        "mcnemar_p": 1.0,
+        "cost_delta_usd": -0.004049,
+        "cost_savings_pct": -6.74,
+        "cost_diff_ci_95": {
+          "mean": -0.00036669999999999997,
+          "ci_low": -0.0012844831726079274,
+          "ci_high": 0.0005510831726079275
+        },
+        "latency_diff_ci_95": {
+          "mean": -1507.6363750000003,
+          "ci_low": -3520.234427931736,
+          "ci_high": 504.96167793173527
+        },
+        "p50_speedup_x": 0.74
+      },
+      "gemini-3.1-pro-preview": {
+        "n_pairs": 17,
+        "pass_delta_pp": 15.0,
+        "qg_rescued": 3,
+        "qg_regressed": 0,
+        "mcnemar_p": 0.25,
+        "cost_delta_usd": 0.001715,
+        "cost_savings_pct": 2.07,
+        "cost_diff_ci_95": {
+          "mean": -6.529411764705881e-06,
+          "ci_low": -1.4009048586294379e-05,
+          "ci_high": 9.50225056882616e-07
+        },
+        "latency_diff_ci_95": {
+          "mean": -6800.576529411765,
+          "ci_low": -13517.951275191965,
+          "ci_high": -83.20178363156538
+        },
+        "p50_speedup_x": 0.79
+      },
+      "gemini-4-carbon": {
+        "n_pairs": 24,
+        "pass_delta_pp": 4.17,
+        "qg_rescued": 1,
+        "qg_regressed": 0,
+        "mcnemar_p": 1.0,
+        "cost_delta_usd": -0.004671,
+        "cost_savings_pct": -6.3,
+        "cost_diff_ci_95": {
+          "mean": -0.00019461666666666672,
+          "ci_low": -0.001012390868201217,
+          "ci_high": 0.0006231575348678835
+        },
+        "latency_diff_ci_95": {
+          "mean": 42.01433333333332,
+          "ci_low": -9198.247984648118,
+          "ci_high": 9282.276651314784
+        },
+        "p50_speedup_x": 0.68
+      },
+      "gemini-4-argon": {
+        "n_pairs": 15,
+        "pass_delta_pp": 10.0,
+        "qg_rescued": 1,
+        "qg_regressed": 0,
+        "mcnemar_p": 1.0,
+        "cost_delta_usd": 0.00652,
+        "cost_savings_pct": 22.33,
+        "cost_diff_ci_95": {
+          "mean": 5.948666666666671e-05,
+          "ci_low": -0.00010062201113935355,
+          "ci_high": 0.00021959534447268695
+        },
+        "latency_diff_ci_95": {
+          "mean": -3038.8726666666666,
+          "ci_low": -7082.169687490179,
+          "ci_high": 1004.4243541568462
+        },
+        "p50_speedup_x": 0.73
+      },
+      "gemini-4-neon": {
+        "n_pairs": 14,
+        "pass_delta_pp": 5.26,
+        "qg_rescued": 0,
+        "qg_regressed": 0,
+        "mcnemar_p": 1.0,
+        "cost_delta_usd": 0.040083,
+        "cost_savings_pct": 22.2,
+        "cost_diff_ci_95": {
+          "mean": -0.00015750000000000006,
+          "ci_low": -0.0015077185432599504,
+          "ci_high": 0.0011927185432599502
+        },
+        "latency_diff_ci_95": {
+          "mean": -2558.913642857143,
+          "ci_low": -4991.4922346072435,
+          "ci_high": -126.33505110704164
+        },
+        "p50_speedup_x": 0.97
+      }
+    },
+    "enterprise_knowledge": {
+      "gemini-4-hydrogen": {
+        "n_pairs": 1,
+        "pass_delta_pp": 0.0,
+        "qg_rescued": 0,
+        "qg_regressed": 0,
+        "mcnemar_p": 1.0,
+        "cost_delta_usd": -0.013179,
+        "cost_savings_pct": -118.22,
+        "cost_diff_ci_95": {
+          "mean": 0.0005129999999999996,
+          "ci_low": 0.0005129999999999996,
+          "ci_high": 0.0005129999999999996
+        },
+        "latency_diff_ci_95": {
+          "mean": 376.28399999999965,
+          "ci_low": 376.28399999999965,
+          "ci_high": 376.28399999999965
+        },
+        "p50_speedup_x": 0.87
+      }
+    }
+  },
+  "model_totals": {
+    "gemma-4-31b-it": {
+      "display_name": "Gemma 4 31B IT",
+      "tier_label": "Open-Weights 31B",
+      "baseline": {
+        "n": 24,
+        "passed": 19,
+        "pass_at_1_pct": 79.17,
+        "uncached_input_tokens": 3965,
+        "cached_input_tokens": 0,
+        "total_input_tokens": 3965,
+        "candidates_output_tokens": 1111,
+        "thoughts_output_tokens": 5146,
+        "total_output_tokens": 6257,
+        "warm_cache_hit_pct": 0.0,
+        "generative_cost_usd": 0.0,
+        "classifier_cost_usd": 0.0,
+        "retry_tax_usd": 0.0,
+        "total_cost_usd": 0.0,
+        "mean_cost_usd": 0.0,
+        "p50_ms": 95763.69,
+        "p90_ms": 176244.63,
+        "mean_ms": 99756.5,
+        "mean_gate_overhead_ms": 0.0,
+        "mean_turns": 1.0,
+        "promoted_count": 0,
+        "routed_model_counts": {
+          "gemma-4-31b-it": 24
+        },
+        "security": {
+          "attack_n": 16,
+          "attack_safe_n": 11,
+          "attack_defense_pct": 68.75,
+          "raw_model_compromised_n": 5,
+          "raw_model_compromised_pct": 31.25,
+          "quadgate_blocked_n": 0,
+          "benign_n": 8,
+          "benign_pass_n": 8,
+          "benign_pass_pct": 100.0,
+          "benign_fpr_pct": 0.0
+        }
+      },
+      "quadgate": {
+        "n": 24,
+        "passed": 24,
+        "pass_at_1_pct": 100.0,
+        "uncached_input_tokens": 3965,
+        "cached_input_tokens": 0,
+        "total_input_tokens": 3965,
+        "candidates_output_tokens": 1111,
+        "thoughts_output_tokens": 5146,
+        "total_output_tokens": 6257,
+        "warm_cache_hit_pct": 0.0,
+        "generative_cost_usd": 0.0,
+        "classifier_cost_usd": 0.000335,
+        "retry_tax_usd": 0.0,
+        "total_cost_usd": 0.000335,
+        "mean_cost_usd": 1.4e-05,
+        "p50_ms": 101728.55,
+        "p90_ms": 173513.32,
+        "mean_ms": 97221.37,
+        "mean_gate_overhead_ms": 1390.0,
+        "mean_turns": 1.0,
+        "promoted_count": 0,
+        "routed_model_counts": {
+          "gemma-4-31b-it": 24
+        },
+        "security": {
+          "attack_n": 16,
+          "attack_safe_n": 16,
+          "attack_defense_pct": 100.0,
+          "raw_model_compromised_n": 5,
+          "raw_model_compromised_pct": 31.25,
+          "quadgate_blocked_n": 6,
+          "benign_n": 8,
+          "benign_pass_n": 8,
+          "benign_pass_pct": 100.0,
+          "benign_fpr_pct": 0.0
+        }
+      }
+    },
+    "gemini-3.1-flash-lite": {
+      "display_name": "Gemini 3.1 Flash-Lite",
+      "tier_label": "Budget / Floor",
+      "baseline": {
+        "n": 31,
+        "passed": 22,
+        "pass_at_1_pct": 70.97,
+        "uncached_input_tokens": 518545,
+        "cached_input_tokens": 0,
+        "total_input_tokens": 518545,
+        "candidates_output_tokens": 2344,
+        "thoughts_output_tokens": 0,
+        "total_output_tokens": 2344,
+        "warm_cache_hit_pct": 0.0,
+        "generative_cost_usd": 0.133152,
+        "classifier_cost_usd": 0.0,
+        "retry_tax_usd": 0.0,
+        "total_cost_usd": 0.133152,
+        "mean_cost_usd": 0.004295,
+        "p50_ms": 1709.33,
+        "p90_ms": 6119.59,
+        "mean_ms": 2940.97,
+        "mean_gate_overhead_ms": 0.0,
+        "mean_turns": 1.77,
+        "promoted_count": 0,
+        "routed_model_counts": {
+          "gemini-3.1-flash-lite": 31
+        },
+        "kv_turns": {
+          "turn_accuracy_pct": 100.0,
+          "turns_2_to_n_cache_hit_pct": 0.0,
+          "per_turn": [
+            {
+              "turn": 1,
+              "n": 6,
+              "cache_hit_pct": 0.0,
+              "mean_uncached_in": 16956.0,
+              "mean_cached_in": 0.0,
+              "correct_pct": 100.0
+            },
+            {
+              "turn": 2,
+              "n": 6,
+              "cache_hit_pct": 0.0,
+              "mean_uncached_in": 17050.5,
+              "mean_cached_in": 0.0,
+              "correct_pct": 100.0
+            },
+            {
+              "turn": 3,
+              "n": 6,
+              "cache_hit_pct": 0.0,
+              "mean_uncached_in": 17123.7,
+              "mean_cached_in": 0.0,
+              "correct_pct": 100.0
+            },
+            {
+              "turn": 4,
+              "n": 6,
+              "cache_hit_pct": 0.0,
+              "mean_uncached_in": 17231.3,
+              "mean_cached_in": 0.0,
+              "correct_pct": 100.0
+            },
+            {
+              "turn": 5,
+              "n": 6,
+              "cache_hit_pct": 0.0,
+              "mean_uncached_in": 17341.3,
+              "mean_cached_in": 0.0,
+              "correct_pct": 100.0
+            }
+          ]
+        }
+      },
+      "quadgate": {
+        "n": 32,
+        "passed": 30,
+        "pass_at_1_pct": 93.75,
+        "uncached_input_tokens": 176418,
+        "cached_input_tokens": 341640,
+        "total_input_tokens": 518058,
+        "candidates_output_tokens": 2636,
+        "thoughts_output_tokens": 0,
+        "total_output_tokens": 2636,
+        "warm_cache_hit_pct": 65.95,
+        "generative_cost_usd": 0.0566,
+        "classifier_cost_usd": 0.004189,
+        "retry_tax_usd": 0.0,
+        "total_cost_usd": 0.060788,
+        "mean_cost_usd": 0.0019,
+        "p50_ms": 1877.96,
+        "p90_ms": 7554.62,
+        "mean_ms": 4123.15,
+        "mean_gate_overhead_ms": 1824.28,
+        "mean_turns": 1.75,
+        "promoted_count": 0,
+        "routed_model_counts": {
+          "gemini-3.1-flash-lite": 32
+        },
+        "kv_turns": {
+          "turn_accuracy_pct": 100.0,
+          "turns_2_to_n_cache_hit_pct": 82.97,
+          "per_turn": [
+            {
+              "turn": 1,
+              "n": 6,
+              "cache_hit_pct": 0.0,
+              "mean_uncached_in": 16919.0,
+              "mean_cached_in": 0.0,
+              "correct_pct": 100.0
+            },
+            {
+              "turn": 2,
+              "n": 6,
+              "cache_hit_pct": 83.71,
+              "mean_uncached_in": 2772.0,
+              "mean_cached_in": 14244.0,
+              "correct_pct": 100.0
+            },
+            {
+              "turn": 3,
+              "n": 6,
+              "cache_hit_pct": 83.3,
+              "mean_uncached_in": 2854.8,
+              "mean_cached_in": 14238.0,
+              "correct_pct": 100.0
+            },
+            {
+              "turn": 4,
+              "n": 6,
+              "cache_hit_pct": 82.73,
+              "mean_uncached_in": 2971.8,
+              "mean_cached_in": 14232.0,
+              "correct_pct": 100.0
+            },
+            {
+              "turn": 5,
+              "n": 6,
+              "cache_hit_pct": 82.15,
+              "mean_uncached_in": 3090.8,
+              "mean_cached_in": 14226.0,
+              "correct_pct": 100.0
+            }
+          ]
+        }
+      }
+    },
+    "gemini-3.8-flash": {
+      "display_name": "Gemini 3.8 Flash",
+      "tier_label": "Mid / Velocity",
+      "baseline": {
+        "n": 30,
+        "passed": 28,
+        "pass_at_1_pct": 93.33,
+        "uncached_input_tokens": 503050,
+        "cached_input_tokens": 15010,
+        "total_input_tokens": 518060,
+        "candidates_output_tokens": 1635,
+        "thoughts_output_tokens": 13086,
+        "total_output_tokens": 14721,
+        "warm_cache_hit_pct": 2.9,
+        "generative_cost_usd": 0.433617,
+        "classifier_cost_usd": 0.0,
+        "retry_tax_usd": 0.0,
+        "total_cost_usd": 0.433617,
+        "mean_cost_usd": 0.014454,
+        "p50_ms": 9752.15,
+        "p90_ms": 16496.79,
+        "mean_ms": 10870.64,
+        "mean_gate_overhead_ms": 0.0,
+        "mean_turns": 1.8,
+        "promoted_count": 0,
+        "routed_model_counts": {
+          "gemini-3.8-flash": 30
+        },
+        "kv_turns": {
+          "turn_accuracy_pct": 100.0,
+          "turns_2_to_n_cache_hit_pct": 3.64,
+          "per_turn": [
+            {
+              "turn": 1,
+              "n": 6,
+              "cache_hit_pct": 0.0,
+              "mean_uncached_in": 16956.0,
+              "mean_cached_in": 0.0,
+              "correct_pct": 100.0
+            },
+            {
+              "turn": 2,
+              "n": 6,
+              "cache_hit_pct": 14.67,
+              "mean_uncached_in": 14547.7,
+              "mean_cached_in": 2501.7,
+              "correct_pct": 100.0
+            },
+            {
+              "turn": 3,
+              "n": 6,
+              "cache_hit_pct": 0.0,
+              "mean_uncached_in": 17119.8,
+              "mean_cached_in": 0.0,
+              "correct_pct": 100.0
+            },
+            {
+              "turn": 4,
+              "n": 6,
+              "cache_hit_pct": 0.0,
+              "mean_uncached_in": 17225.2,
+              "mean_cached_in": 0.0,
+              "correct_pct": 100.0
+            },
+            {
+              "turn": 5,
+              "n": 6,
+              "cache_hit_pct": 0.0,
+              "mean_uncached_in": 17332.2,
+              "mean_cached_in": 0.0,
+              "correct_pct": 100.0
+            }
+          ]
+        }
+      },
+      "quadgate": {
+        "n": 30,
+        "passed": 29,
+        "pass_at_1_pct": 96.67,
+        "uncached_input_tokens": 156868,
+        "cached_input_tokens": 360238,
+        "total_input_tokens": 517106,
+        "candidates_output_tokens": 1754,
+        "thoughts_output_tokens": 12085,
+        "total_output_tokens": 13839,
+        "warm_cache_hit_pct": 69.66,
+        "generative_cost_usd": 0.196565,
+        "classifier_cost_usd": 0.004138,
+        "retry_tax_usd": 0.0,
+        "total_cost_usd": 0.200703,
+        "mean_cost_usd": 0.00669,
+        "p50_ms": 10714.97,
+        "p90_ms": 21779.66,
+        "mean_ms": 12460.98,
+        "mean_gate_overhead_ms": 1967.91,
+        "mean_turns": 1.8,
+        "promoted_count": 0,
+        "routed_model_counts": {
+          "gemini-3.8-flash": 30
+        },
+        "kv_turns": {
+          "turn_accuracy_pct": 100.0,
+          "turns_2_to_n_cache_hit_pct": 87.52,
+          "per_turn": [
+            {
+              "turn": 1,
+              "n": 6,
+              "cache_hit_pct": 0.0,
+              "mean_uncached_in": 16919.0,
+              "mean_cached_in": 0.0,
+              "correct_pct": 100.0
+            },
+            {
+              "turn": 2,
+              "n": 6,
+              "cache_hit_pct": 87.4,
+              "mean_uncached_in": 2143.7,
+              "mean_cached_in": 14870.0,
+              "correct_pct": 100.0
+            },
+            {
+              "turn": 3,
+              "n": 6,
+              "cache_hit_pct": 87.6,
+              "mean_uncached_in": 2118.2,
+              "mean_cached_in": 14969.7,
+              "correct_pct": 100.0
+            },
+            {
+              "turn": 4,
+              "n": 6,
+              "cache_hit_pct": 87.49,
+              "mean_uncached_in": 2151.0,
+              "mean_cached_in": 15045.5,
+              "correct_pct": 100.0
+            },
+            {
+              "turn": 5,
+              "n": 6,
+              "cache_hit_pct": 87.57,
+              "mean_uncached_in": 2152.0,
+              "mean_cached_in": 15154.5,
+              "correct_pct": 100.0
+            }
+          ]
+        }
+      }
+    },
+    "gemini-4-hydrogen": {
+      "display_name": "Gemini 4 Hydrogen",
+      "tier_label": "Frontier Efficiency",
+      "baseline": {
+        "n": 25,
+        "passed": 23,
+        "pass_at_1_pct": 92.0,
+        "uncached_input_tokens": 521798,
+        "cached_input_tokens": 0,
+        "total_input_tokens": 521798,
+        "candidates_output_tokens": 2454,
+        "thoughts_output_tokens": 10456,
+        "total_output_tokens": 12910,
+        "warm_cache_hit_pct": 0.0,
+        "generative_cost_usd": 0.879522,
+        "classifier_cost_usd": 0.0,
+        "retry_tax_usd": 0.0,
+        "total_cost_usd": 0.879522,
+        "mean_cost_usd": 0.035181,
+        "p50_ms": 6365.78,
+        "p90_ms": 18540.66,
+        "mean_ms": 8273.13,
+        "mean_gate_overhead_ms": 0.0,
+        "mean_turns": 1.96,
+        "promoted_count": 0,
+        "routed_model_counts": {
+          "gemini-4-hydrogen": 25
+        },
+        "kv_turns": {
+          "turn_accuracy_pct": 100.0,
+          "turns_2_to_n_cache_hit_pct": 0.0,
+          "per_turn": [
+            {
+              "turn": 1,
+              "n": 6,
+              "cache_hit_pct": 0.0,
+              "mean_uncached_in": 16952.0,
+              "mean_cached_in": 0.0,
+              "correct_pct": 100.0
+            },
+            {
+              "turn": 2,
+              "n": 6,
+              "cache_hit_pct": 0.0,
+              "mean_uncached_in": 17052.2,
+              "mean_cached_in": 0.0,
+              "correct_pct": 100.0
+            },
+            {
+              "turn": 3,
+              "n": 6,
+              "cache_hit_pct": 0.0,
+              "mean_uncached_in": 17128.3,
+              "mean_cached_in": 0.0,
+              "correct_pct": 100.0
+            },
+            {
+              "turn": 4,
+              "n": 6,
+              "cache_hit_pct": 0.0,
+              "mean_uncached_in": 17233.3,
+              "mean_cached_in": 0.0,
+              "correct_pct": 100.0
+            },
+            {
+              "turn": 5,
+              "n": 6,
+              "cache_hit_pct": 0.0,
+              "mean_uncached_in": 17344.3,
+              "mean_cached_in": 0.0,
+              "correct_pct": 100.0
+            }
+          ]
+        }
+      },
+      "quadgate": {
+        "n": 27,
+        "passed": 25,
+        "pass_at_1_pct": 92.59,
+        "uncached_input_tokens": 163366,
+        "cached_input_tokens": 360075,
+        "total_input_tokens": 523441,
+        "candidates_output_tokens": 3244,
+        "thoughts_output_tokens": 9677,
+        "total_output_tokens": 12921,
+        "warm_cache_hit_pct": 68.79,
+        "generative_cost_usd": 0.368962,
+        "classifier_cost_usd": 0.00397,
+        "retry_tax_usd": 0.0,
+        "total_cost_usd": 0.372932,
+        "mean_cost_usd": 0.013812,
+        "p50_ms": 7336.97,
+        "p90_ms": 18269.37,
+        "mean_ms": 9679.96,
+        "mean_gate_overhead_ms": 897.6,
+        "mean_turns": 1.89,
+        "promoted_count": 0,
+        "routed_model_counts": {
+          "gemini-4-hydrogen": 27
+        },
+        "kv_turns": {
+          "turn_accuracy_pct": 100.0,
+          "turns_2_to_n_cache_hit_pct": 87.48,
+          "per_turn": [
+            {
+              "turn": 1,
+              "n": 6,
+              "cache_hit_pct": 0.0,
+              "mean_uncached_in": 16916.0,
+              "mean_cached_in": 0.0,
+              "correct_pct": 100.0
+            },
+            {
+              "turn": 2,
+              "n": 6,
+              "cache_hit_pct": 87.36,
+              "mean_uncached_in": 2150.2,
+              "mean_cached_in": 14862.8,
+              "correct_pct": 100.0
+            },
+            {
+              "turn": 3,
+              "n": 6,
+              "cache_hit_pct": 87.57,
+              "mean_uncached_in": 2124.8,
+              "mean_cached_in": 14964.0,
+              "correct_pct": 100.0
+            },
+            {
+              "turn": 4,
+              "n": 6,
+              "cache_hit_pct": 87.47,
+              "mean_uncached_in": 2155.0,
+              "mean_cached_in": 15039.8,
+              "correct_pct": 100.0
+            },
+            {
+              "turn": 5,
+              "n": 6,
+              "cache_hit_pct": 87.52,
+              "mean_uncached_in": 2160.0,
+              "mean_cached_in": 15145.8,
+              "correct_pct": 100.0
+            }
+          ]
+        }
+      }
+    },
+    "gemini-3.1-pro-preview": {
+      "display_name": "Gemini 3.1 Pro",
+      "tier_label": "Frontier 3.1 Pro",
+      "baseline": {
+        "n": 26,
+        "passed": 23,
+        "pass_at_1_pct": 88.46,
+        "uncached_input_tokens": 517699,
+        "cached_input_tokens": 0,
+        "total_input_tokens": 517699,
+        "candidates_output_tokens": 1927,
+        "thoughts_output_tokens": 14468,
+        "total_output_tokens": 16395,
+        "warm_cache_hit_pct": 0.0,
+        "generative_cost_usd": 1.232138,
+        "classifier_cost_usd": 0.0,
+        "retry_tax_usd": 0.0,
+        "total_cost_usd": 1.232138,
+        "mean_cost_usd": 0.04739,
+        "p50_ms": 14410.34,
+        "p90_ms": 84002.71,
+        "mean_ms": 27961.71,
+        "mean_gate_overhead_ms": 0.0,
+        "mean_turns": 1.92,
+        "promoted_count": 0,
+        "routed_model_counts": {
+          "gemini-3.1-pro-preview": 26
+        },
+        "kv_turns": {
+          "turn_accuracy_pct": 100.0,
+          "turns_2_to_n_cache_hit_pct": 0.0,
+          "per_turn": [
+            {
+              "turn": 1,
+              "n": 6,
+              "cache_hit_pct": 0.0,
+              "mean_uncached_in": 16956.0,
+              "mean_cached_in": 0.0,
+              "correct_pct": 100.0
+            },
+            {
+              "turn": 2,
+              "n": 6,
+              "cache_hit_pct": 0.0,
+              "mean_uncached_in": 17054.0,
+              "mean_cached_in": 0.0,
+              "correct_pct": 100.0
+            },
+            {
+              "turn": 3,
+              "n": 6,
+              "cache_hit_pct": 0.0,
+              "mean_uncached_in": 17129.8,
+              "mean_cached_in": 0.0,
+              "correct_pct": 100.0
+            },
+            {
+              "turn": 4,
+              "n": 6,
+              "cache_hit_pct": 0.0,
+              "mean_uncached_in": 17239.8,
+              "mean_cached_in": 0.0,
+              "correct_pct": 100.0
+            },
+            {
+              "turn": 5,
+              "n": 6,
+              "cache_hit_pct": 0.0,
+              "mean_uncached_in": 17352.8,
+              "mean_cached_in": 0.0,
+              "correct_pct": 100.0
+            }
+          ]
+        }
+      },
+      "quadgate": {
+        "n": 26,
+        "passed": 25,
+        "pass_at_1_pct": 96.15,
+        "uncached_input_tokens": 186656,
+        "cached_input_tokens": 330195,
+        "total_input_tokens": 516851,
+        "candidates_output_tokens": 2142,
+        "thoughts_output_tokens": 15215,
+        "total_output_tokens": 17357,
+        "warm_cache_hit_pct": 63.89,
+        "generative_cost_usd": 0.647635,
+        "classifier_cost_usd": 0.003997,
+        "retry_tax_usd": 0.0,
+        "total_cost_usd": 0.651632,
+        "mean_cost_usd": 0.025063,
+        "p50_ms": 20371.31,
+        "p90_ms": 67789.69,
+        "mean_ms": 31546.09,
+        "mean_gate_overhead_ms": 1012.74,
+        "mean_turns": 1.92,
+        "promoted_count": 0,
+        "routed_model_counts": {
+          "gemini-3.1-pro-preview": 26
+        },
+        "kv_turns": {
+          "turn_accuracy_pct": 100.0,
+          "turns_2_to_n_cache_hit_pct": 80.19,
+          "per_turn": [
+            {
+              "turn": 1,
+              "n": 6,
+              "cache_hit_pct": 0.0,
+              "mean_uncached_in": 16919.0,
+              "mean_cached_in": 0.0,
+              "correct_pct": 100.0
+            },
+            {
+              "turn": 2,
+              "n": 6,
+              "cache_hit_pct": 87.38,
+              "mean_uncached_in": 2148.0,
+              "mean_cached_in": 14868.0,
+              "correct_pct": 100.0
+            },
+            {
+              "turn": 3,
+              "n": 6,
+              "cache_hit_pct": 87.59,
+              "mean_uncached_in": 2121.8,
+              "mean_cached_in": 14971.0,
+              "correct_pct": 100.0
+            },
+            {
+              "turn": 4,
+              "n": 6,
+              "cache_hit_pct": 58.32,
+              "mean_uncached_in": 7171.2,
+              "mean_cached_in": 10032.7,
+              "correct_pct": 100.0
+            },
+            {
+              "turn": 5,
+              "n": 6,
+              "cache_hit_pct": 87.55,
+              "mean_uncached_in": 2156.0,
+              "mean_cached_in": 15160.8,
+              "correct_pct": 100.0
+            }
+          ]
+        }
+      }
+    },
+    "gemini-4-carbon": {
+      "display_name": "Gemini 4 Carbon",
+      "tier_label": "Frontier Flagship",
+      "baseline": {
+        "n": 30,
+        "passed": 29,
+        "pass_at_1_pct": 96.67,
+        "uncached_input_tokens": 523814,
+        "cached_input_tokens": 0,
+        "total_input_tokens": 523814,
+        "candidates_output_tokens": 1773,
+        "thoughts_output_tokens": 6021,
+        "total_output_tokens": 7794,
+        "warm_cache_hit_pct": 0.0,
+        "generative_cost_usd": 1.125568,
+        "classifier_cost_usd": 0.0,
+        "retry_tax_usd": 0.0,
+        "total_cost_usd": 1.125568,
+        "mean_cost_usd": 0.037519,
+        "p50_ms": 12081.64,
+        "p90_ms": 43822.61,
+        "mean_ms": 19860.14,
+        "mean_gate_overhead_ms": 0.0,
+        "mean_turns": 1.8,
+        "promoted_count": 0,
+        "routed_model_counts": {
+          "gemini-4-carbon": 30
+        },
+        "kv_turns": {
+          "turn_accuracy_pct": 100.0,
+          "turns_2_to_n_cache_hit_pct": 0.0,
+          "per_turn": [
+            {
+              "turn": 1,
+              "n": 6,
+              "cache_hit_pct": 0.0,
+              "mean_uncached_in": 16952.0,
+              "mean_cached_in": 0.0,
+              "correct_pct": 100.0
+            },
+            {
+              "turn": 2,
+              "n": 6,
+              "cache_hit_pct": 0.0,
+              "mean_uncached_in": 17051.0,
+              "mean_cached_in": 0.0,
+              "correct_pct": 100.0
+            },
+            {
+              "turn": 3,
+              "n": 6,
+              "cache_hit_pct": 0.0,
+              "mean_uncached_in": 17125.8,
+              "mean_cached_in": 0.0,
+              "correct_pct": 100.0
+            },
+            {
+              "turn": 4,
+              "n": 6,
+              "cache_hit_pct": 0.0,
+              "mean_uncached_in": 17230.8,
+              "mean_cached_in": 0.0,
+              "correct_pct": 100.0
+            },
+            {
+              "turn": 5,
+              "n": 6,
+              "cache_hit_pct": 0.0,
+              "mean_uncached_in": 17341.8,
+              "mean_cached_in": 0.0,
+              "correct_pct": 100.0
+            }
+          ]
+        }
+      },
+      "quadgate": {
+        "n": 30,
+        "passed": 30,
+        "pass_at_1_pct": 100.0,
+        "uncached_input_tokens": 163631,
+        "cached_input_tokens": 360090,
+        "total_input_tokens": 523721,
+        "candidates_output_tokens": 1767,
+        "thoughts_output_tokens": 5443,
+        "total_output_tokens": 7210,
+        "warm_cache_hit_pct": 68.76,
+        "generative_cost_usd": 0.435371,
+        "classifier_cost_usd": 0.004155,
+        "retry_tax_usd": 0.0,
+        "total_cost_usd": 0.439526,
+        "mean_cost_usd": 0.014651,
+        "p50_ms": 16657.51,
+        "p90_ms": 39945.71,
+        "mean_ms": 19521.74,
+        "mean_gate_overhead_ms": 1600.68,
+        "mean_turns": 1.8,
+        "promoted_count": 0,
+        "routed_model_counts": {
+          "gemini-4-carbon": 30
+        },
+        "security": {
+          "attack_n": 16,
+          "attack_safe_n": 16,
+          "attack_defense_pct": 100.0,
+          "raw_model_compromised_n": 1,
+          "raw_model_compromised_pct": 6.25,
+          "quadgate_blocked_n": 1,
+          "benign_n": 14,
+          "benign_pass_n": 14,
+          "benign_pass_pct": 100.0,
+          "benign_fpr_pct": 0.0
+        }
+      }
+    },
+    "gemini-4-argon": {
+      "display_name": "Gemini 4 Argon",
+      "tier_label": "Frontier Reasoning",
+      "baseline": {
+        "n": 26,
+        "passed": 24,
+        "pass_at_1_pct": 92.31,
+        "uncached_input_tokens": 522356,
+        "cached_input_tokens": 0,
+        "total_input_tokens": 522356,
+        "candidates_output_tokens": 1716,
+        "thoughts_output_tokens": 494,
+        "total_output_tokens": 2210,
+        "warm_cache_hit_pct": 0.0,
+        "generative_cost_usd": 1.066812,
+        "classifier_cost_usd": 0.0,
+        "retry_tax_usd": 0.0,
+        "total_cost_usd": 1.066812,
+        "mean_cost_usd": 0.041031,
+        "p50_ms": 7785.41,
+        "p90_ms": 43279.08,
+        "mean_ms": 16473.86,
+        "mean_gate_overhead_ms": 0.0,
+        "mean_turns": 1.92,
+        "promoted_count": 0,
+        "routed_model_counts": {
+          "gemini-4-argon": 26
+        },
+        "kv_turns": {
+          "turn_accuracy_pct": 100.0,
+          "turns_2_to_n_cache_hit_pct": 0.0,
+          "per_turn": [
+            {
+              "turn": 1,
+              "n": 6,
+              "cache_hit_pct": 0.0,
+              "mean_uncached_in": 16952.0,
+              "mean_cached_in": 0.0,
+              "correct_pct": 100.0
+            },
+            {
+              "turn": 2,
+              "n": 6,
+              "cache_hit_pct": 0.0,
+              "mean_uncached_in": 17051.0,
+              "mean_cached_in": 0.0,
+              "correct_pct": 100.0
+            },
+            {
+              "turn": 3,
+              "n": 6,
+              "cache_hit_pct": 0.0,
+              "mean_uncached_in": 17125.8,
+              "mean_cached_in": 0.0,
+              "correct_pct": 100.0
+            },
+            {
+              "turn": 4,
+              "n": 6,
+              "cache_hit_pct": 0.0,
+              "mean_uncached_in": 17230.8,
+              "mean_cached_in": 0.0,
+              "correct_pct": 100.0
+            },
+            {
+              "turn": 5,
+              "n": 6,
+              "cache_hit_pct": 0.0,
+              "mean_uncached_in": 17341.8,
+              "mean_cached_in": 0.0,
+              "correct_pct": 100.0
+            }
+          ]
+        }
+      },
+      "quadgate": {
+        "n": 21,
+        "passed": 21,
+        "pass_at_1_pct": 100.0,
+        "uncached_input_tokens": 159859,
+        "cached_input_tokens": 360070,
+        "total_input_tokens": 519929,
+        "candidates_output_tokens": 1344,
+        "thoughts_output_tokens": 412,
+        "total_output_tokens": 1756,
+        "warm_cache_hit_pct": 69.25,
+        "generative_cost_usd": 0.373285,
+        "classifier_cost_usd": 0.003892,
+        "retry_tax_usd": 0.0,
+        "total_cost_usd": 0.377177,
+        "mean_cost_usd": 0.017961,
+        "p50_ms": 11929.39,
+        "p90_ms": 43339.03,
+        "mean_ms": 20358.85,
+        "mean_gate_overhead_ms": 839.37,
+        "mean_turns": 2.14,
+        "promoted_count": 0,
+        "routed_model_counts": {
+          "gemini-4-argon": 21
+        },
+        "kv_turns": {
+          "turn_accuracy_pct": 100.0,
+          "turns_2_to_n_cache_hit_pct": 87.48,
+          "per_turn": [
+            {
+              "turn": 1,
+              "n": 6,
+              "cache_hit_pct": 0.0,
+              "mean_uncached_in": 16916.0,
+              "mean_cached_in": 0.0,
+              "correct_pct": 100.0
+            },
+            {
+              "turn": 2,
+              "n": 6,
+              "cache_hit_pct": 87.36,
+              "mean_uncached_in": 2151.0,
+              "mean_cached_in": 14862.0,
+              "correct_pct": 100.0
+            },
+            {
+              "turn": 3,
+              "n": 6,
+              "cache_hit_pct": 87.57,
+              "mean_uncached_in": 2124.8,
+              "mean_cached_in": 14964.0,
+              "correct_pct": 100.0
+            },
+            {
+              "turn": 4,
+              "n": 6,
+              "cache_hit_pct": 87.47,
+              "mean_uncached_in": 2155.0,
+              "mean_cached_in": 15039.8,
+              "correct_pct": 100.0
+            },
+            {
+              "turn": 5,
+              "n": 6,
+              "cache_hit_pct": 87.52,
+              "mean_uncached_in": 2160.0,
+              "mean_cached_in": 15145.8,
+              "correct_pct": 100.0
+            }
+          ]
+        }
+      }
+    },
+    "gemini-4-neon": {
+      "display_name": "Gemini 4 Neon",
+      "tier_label": "Frontier Coding",
+      "baseline": {
+        "n": 25,
+        "passed": 24,
+        "pass_at_1_pct": 96.0,
+        "uncached_input_tokens": 523559,
+        "cached_input_tokens": 0,
+        "total_input_tokens": 523559,
+        "candidates_output_tokens": 1798,
+        "thoughts_output_tokens": 13933,
+        "total_output_tokens": 15731,
+        "warm_cache_hit_pct": 0.0,
+        "generative_cost_usd": 1.806642,
+        "classifier_cost_usd": 0.0,
+        "retry_tax_usd": 0.0,
+        "total_cost_usd": 1.806642,
+        "mean_cost_usd": 0.072266,
+        "p50_ms": 17256.05,
+        "p90_ms": 37022.37,
+        "mean_ms": 20642.46,
+        "mean_gate_overhead_ms": 0.0,
+        "mean_turns": 1.96,
+        "promoted_count": 0,
+        "routed_model_counts": {
+          "gemini-4-neon": 25
+        },
+        "kv_turns": {
+          "turn_accuracy_pct": 100.0,
+          "turns_2_to_n_cache_hit_pct": 0.0,
+          "per_turn": [
+            {
+              "turn": 1,
+              "n": 6,
+              "cache_hit_pct": 0.0,
+              "mean_uncached_in": 16952.0,
+              "mean_cached_in": 0.0,
+              "correct_pct": 100.0
+            },
+            {
+              "turn": 2,
+              "n": 6,
+              "cache_hit_pct": 0.0,
+              "mean_uncached_in": 17051.0,
+              "mean_cached_in": 0.0,
+              "correct_pct": 100.0
+            },
+            {
+              "turn": 3,
+              "n": 6,
+              "cache_hit_pct": 0.0,
+              "mean_uncached_in": 17125.8,
+              "mean_cached_in": 0.0,
+              "correct_pct": 100.0
+            },
+            {
+              "turn": 4,
+              "n": 6,
+              "cache_hit_pct": 0.0,
+              "mean_uncached_in": 17230.8,
+              "mean_cached_in": 0.0,
+              "correct_pct": 100.0
+            },
+            {
+              "turn": 5,
+              "n": 6,
+              "cache_hit_pct": 0.0,
+              "mean_uncached_in": 17341.8,
+              "mean_cached_in": 0.0,
+              "correct_pct": 100.0
+            }
+          ]
+        }
+      },
+      "quadgate": {
+        "n": 20,
+        "passed": 20,
+        "pass_at_1_pct": 100.0,
+        "uncached_input_tokens": 134808,
+        "cached_input_tokens": 300058,
+        "total_input_tokens": 434866,
+        "candidates_output_tokens": 1350,
+        "thoughts_output_tokens": 9990,
+        "total_output_tokens": 11340,
+        "warm_cache_hit_pct": 69.0,
+        "generative_cost_usd": 0.619533,
+        "classifier_cost_usd": 0.003212,
+        "retry_tax_usd": 0.0,
+        "total_cost_usd": 0.622744,
+        "mean_cost_usd": 0.031137,
+        "p50_ms": 21968.82,
+        "p90_ms": 28408.34,
+        "mean_ms": 20594.04,
+        "mean_gate_overhead_ms": 603.39,
+        "mean_turns": 2.0,
+        "promoted_count": 0,
+        "routed_model_counts": {
+          "gemini-4-neon": 20
+        },
+        "kv_turns": {
+          "turn_accuracy_pct": 100.0,
+          "turns_2_to_n_cache_hit_pct": 87.48,
+          "per_turn": [
+            {
+              "turn": 1,
+              "n": 5,
+              "cache_hit_pct": 0.0,
+              "mean_uncached_in": 16916.0,
+              "mean_cached_in": 0.0,
+              "correct_pct": 100.0
+            },
+            {
+              "turn": 2,
+              "n": 5,
+              "cache_hit_pct": 87.36,
+              "mean_uncached_in": 2151.0,
+              "mean_cached_in": 14862.0,
+              "correct_pct": 100.0
+            },
+            {
+              "turn": 3,
+              "n": 5,
+              "cache_hit_pct": 87.57,
+              "mean_uncached_in": 2124.8,
+              "mean_cached_in": 14964.0,
+              "correct_pct": 100.0
+            },
+            {
+              "turn": 4,
+              "n": 5,
+              "cache_hit_pct": 87.47,
+              "mean_uncached_in": 2155.0,
+              "mean_cached_in": 15039.8,
+              "correct_pct": 100.0
+            },
+            {
+              "turn": 5,
+              "n": 5,
+              "cache_hit_pct": 87.52,
+              "mean_uncached_in": 2160.0,
+              "mean_cached_in": 15145.8,
+              "correct_pct": 100.0
+            }
+          ]
+        }
+      }
+    },
+    "quadgate-ecc-router": {
+      "display_name": "QuadGate ECC Router",
+      "tier_label": "Adaptive Gate-3 ECC",
+      "quadgate": {
+        "n": 1,
+        "passed": 0,
+        "pass_at_1_pct": 0.0,
+        "uncached_input_tokens": 513,
+        "cached_input_tokens": 0,
+        "total_input_tokens": 513,
+        "candidates_output_tokens": 975,
+        "thoughts_output_tokens": 338,
+        "total_output_tokens": 1313,
+        "warm_cache_hit_pct": 0.0,
+        "generative_cost_usd": 0.014156,
+        "classifier_cost_usd": 0.0,
+        "retry_tax_usd": 0.0,
+        "total_cost_usd": 0.014156,
+        "mean_cost_usd": 0.014156,
+        "p50_ms": 10495.92,
+        "p90_ms": 10495.92,
+        "mean_ms": 10495.92,
+        "mean_gate_overhead_ms": 68.86,
+        "mean_turns": 1.0,
+        "promoted_count": 0,
+        "routed_model_counts": {
+          "gemini-4-carbon": 1
+        }
+      }
+    }
+  },
+  "ecc_comparisons": {
+    "ecc_summary": {
+      "n": 1,
+      "pass_at_1_pct": 0.0,
+      "total_cost_usd": 0.014156,
+      "p50_ms": 10495.92,
+      "routed_counts": {
+        "gemini-4-carbon": 1
+      }
+    }
+  }
+}
